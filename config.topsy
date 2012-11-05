@@ -1,0 +1,25 @@
+# Stefano Gualandi, stefano.gualandi@gmail.com
+# last update, October, 2012
+
+OPTFLAG = -O2 -DDEBUG -Wall
+LDFLAGS = -O2 -DDEBUG -lm -lpthread
+
+COMPILER    = g++ ${OPTFLAG}
+LINKER      = g++ ${LDFLAGS}
+
+# Directory for my files
+MYHOME          = ${PWD}
+BIN             = ${MYHOME}/bin
+INCLUDE         = ${MYHOME}/include
+LIB             = ${MYHOME}/lib
+SRC             = ${MYHOME}/src
+
+# Directory for the Boost library
+BOOST_INCLUDE   = /data/gualandi/LIBS/boost/include
+BOOST_LIB       = /data/gualandi/LIBS/boost/lib 
+
+# Gurobi directory
+GECODE_INCLUDE  = /data/gualandi/LIBS/gecode-3.7.3
+GECODE_LIB      = -L/data/gualandi/LIBS/gecode/ -lgecodedriver -lgecodeint -lgecodekernel -lgecodeminimodel \
+   -lgecodesearch -lgecodeset -lgecodesupport 
+
