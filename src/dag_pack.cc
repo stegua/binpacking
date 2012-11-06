@@ -86,14 +86,18 @@ DAG::subgradient(node_t Source, node_t Target, cost_t& LB, cost_t& UB) {
    ArcGradView W;
    vector<CostResources> Rf(n);
    vector<CostResources> Rb(n);
-   for ( int v = 0; v < n; ++v ) {
-      Rf[v].setData(0.0,k);
-      Rb[v].setData(0.0,k);
-   }
    for ( int l = 0; l < k; ++l ) 
-      alpha[l] = 0.1;
+      if ( l < k/2 )
+         alpha[l] = 1.0/U[l];
+      else
+         alpha[l] = U[l]+1;
+         
    /// Subgradient loop
-   for ( int iter = 0; iter < 20; ++iter ) {
+   for ( int iter = 0; iter < 10; ++iter ) {
+      for ( int v = 0; v < n; ++v ) {
+         Rf[v].setData(0.0,k);
+         Rb[v].setData(0.0,k);
+      }
       for ( int l = 0; l < k; ++l ) 
          fprintf(stdout," %.5f",alpha[l]);
       fprintf(stdout," LAGG\n");
@@ -103,19 +107,25 @@ DAG::subgradient(node_t Source, node_t Target, cost_t& LB, cost_t& UB) {
             FSArcIter a = it.first;
             a->d = a->c;
             for ( int l = 0; l < k; ++l ) 
-               a->d += a->r[l]*alpha[l];
-
+               if ( l < k/2 ) 
+                  a->d += a->r[l]*alpha[l];
+               else
+                  a->d -= a->r[l]*alpha[l];
          }
       }
       /// Update offset of the objective function
       UBoff = 0.0;
       for ( int l = 0; l < k; ++l ) 
-         UBoff -= alpha[l]*U[l];
+         if ( l < k/2 )
+            UBoff -= alpha[l]*U[l];
+         else
+            UBoff += alpha[l]*U[l];
       /// Start double shortest path computation
       dag_ssp_all(Source, W, Rf, Pf, Df );
       /// If destination is reachable, update the lower bound
       if ( Pf[Target] != Target ) 
          LB = std::max<cost_t>(LB,Df[Target]+UBoff);
+      fprintf(stdout,"%.3f ",LB);
       if ( Pf[Target] == Target || LB + EPS  >= UB ) {
          LB = UB;
          return false;
@@ -138,16 +148,16 @@ DAG::subgradient(node_t Source, node_t Target, cost_t& LB, cost_t& UB) {
       /// Update subgradients
       cost_t Hsqr = 0.0;
       for ( int l = 0; l < k; ++l ) {
-         H[l] = -U[l] + Rf[Target].r[l];
+         if ( l < k/2 ) 
+            H[l] = -U[l] + Rf[Target].r[l];
+         else
+            H[l] = +U[l] - Rf[Target].r[l];
          Hsqr += H[l]*H[l];
       }
       cost_t T = f*(UB-LB)/Hsqr;
 
       for ( int l = 0; l < k; ++l )
-         if (U[l] >= 0)
-            alpha[l] = std::max<cost_t>(0.0, alpha[l]+T*H[l]);
-         else  
-            alpha[l] = std::min<cost_t>(0.0, alpha[l]+T*H[l]);
+         alpha[l] = std::max<cost_t>(0.0, alpha[l]+T*H[l]);
    }
 
    return (arcsLeft() < m0);
@@ -163,13 +173,11 @@ DAG::filter( node_t Source, node_t Target, cost_t&LB, cost_t&UB ) {
    /// Data for resource based filtering
    vector<CostResources> Rf(n);
    vector<CostResources> Rb(n);
-
-   for ( int v = 0; v < n; ++v ) {
-      Rf[v].setData(0.0,k);
-      Rb[v].setData(0.0,k);
-   }
-
    while ( removed || newUB ) {
+      for ( int v = 0; v < n; ++v ) {
+         Rf[v].setData(0.0,k);
+         Rb[v].setData(0.0,k);
+      }
       fprintf(stdout, "Loop %.1f %.1f\n", LB, UB);
       /// Stop conditions
       removed = false; /// MANCA IL CONTROLLO SUGLI ARCHI RIMOSSI !!!
@@ -180,7 +188,7 @@ DAG::filter( node_t Source, node_t Target, cost_t&LB, cost_t&UB ) {
          fprintf(stdout, "filter resource %d\n", l);
          ArcResView W(l);
          dag_ssp_all(Source, W, Rf, Pf, Df );
-         fprintf(stdout,"RES %.f %.f\n",U[l],Df[Target]);
+         fprintf(stdout,"RES %d %f\n",U[l],Df[Target]);
          if ( Pf[Target] == Target ) {  /// If the destination is no longer reacheable
             fprintf(stdout, "[feasible] Optimal path found of value UB %.1f\n", UB);
             LB = UB;
@@ -203,7 +211,7 @@ DAG::filter( node_t Source, node_t Target, cost_t&LB, cost_t&UB ) {
          }
       }
       /// Cost Based Filtering (if shortest path == UB then it is the optimum)
-      if ( false ) {
+      if ( true ) {
          ArcCostView W;
 
          dag_ssp_all(Source, W,  Rf, Pf,  Df);
@@ -237,6 +245,7 @@ DAG::filter( node_t Source, node_t Target, cost_t&LB, cost_t&UB ) {
       newUB = ( UB_before > UB );
    }
    fprintf(stdout,"Nodes left %d\n",(int)num_nodes());
+      
 }
 
 void
@@ -246,23 +255,27 @@ DAG::printArcs(int n, int m) {
       //bool flag = false;
       for ( FSArcIterPair it = nit->getIterFS(); it.first != it.second; ++it.first ) {
          //fprintf(stdout,"%d %d\t", it.first->v, it.first->w);
-    //     flag = true;
+         //flag = true;
          D[it.first->w]++;
          //int i = it.first->w / m;
          //int j = it.first->w % m;
       }
-//      if (flag)
-  //       fprintf(stdout,"\n");
+      //if (flag)
+         //fprintf(stdout,"\n");
    }
    int tot = 0;
    for ( int i = 0; i < n; ++i ) {
       int dom = 0;
+      int dif = 0;
       for ( int j = 0; j < m; ++j ) {
-         if ( D[i*m+j] > 0 )
+         if ( D[i*m+j] > 0 ) {
             dom++;
+            dif++;
+         }
       }
-      fprintf(stdout,"#x[%d]=%d \t",i,dom);
+      if ( dif <= 1 )
+         fprintf(stdout,"#x[%d]=%d \t",i,dom);
       tot += dom;
    }
-   fprintf(stdout,"\nDomTot = %d\n",tot);
+   fprintf(stdout,"\nDomTot %d\t",tot);
 }

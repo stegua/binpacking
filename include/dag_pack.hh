@@ -75,7 +75,7 @@ class DAG {
       /// Subgradient
       H0 = 0.0;
       zb = 0.0;
-      f  = 0.5;
+      f  = 1.5;
    }
 
       /// Basic getters
@@ -95,7 +95,7 @@ class DAG {
       }
 
       inline void removeArc( FSArcIter a ) {
-         fprintf(stdout,"removed %d %d\n", a->v, a->w);
+         //fprintf(stdout,"removed %d %d\n", a->v, a->w);
          Nc[a->v].removeForwArc( a );
          Arc& b = A[a->id];
          Nc[a->w].removeBackArc( b );
