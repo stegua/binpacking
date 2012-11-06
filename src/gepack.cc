@@ -29,41 +29,6 @@ using namespace Gecode::Int;
 
 #include "dag_pack.hh"
 
-/// Cutoff object for the script
-class MyCutoff : public Search::Stop {
-   private:
-      Search::TimeStop*    ts; 
-      Search::MemoryStop*  ms; 
-
-      MyCutoff(unsigned int time, unsigned int memory)
-         : ts((time > 0)   ? new Search::TimeStop(time) : NULL),
-         ms((memory > 0) ? new Search::MemoryStop(memory) : NULL) {}
-   public:
-      virtual bool stop(const Search::Statistics& s, const Search::Options& o) {
-         return
-            ((ts != NULL) && ts->stop(s,o)) ||
-            ((ms != NULL) && ms->stop(s,o));
-      }
-      virtual bool stopTime(const Search::Statistics& s, const Search::Options& o) {
-         return
-            ((ts != NULL) && ts->stop(s,o));
-      }
-      virtual bool stopMemory(const Search::Statistics& s, const Search::Options& o) {
-         return
-            ((ms != NULL) && ms->stop(s,o));
-      }
-      static Search::Stop*
-         create(unsigned int time, unsigned int memory) {
-            if ((time == 0) && (memory == 0))
-               return NULL;
-            else
-               return new MyCutoff(time,memory);
-         }
-      ~MyCutoff(void) {
-         delete ts; delete ms;
-      }
-};
-
 /// Main Script
 class BinPacking : public Script {
    protected:
@@ -71,13 +36,24 @@ class BinPacking : public Script {
       IntVarArray   x;  
       /// Load variable
       IntVarArray   l;
+      /// Cost Variables
+      IntVar        z;
    public:
       /// Actual model
-      BinPacking( int n, int m, int C, const vector<int>& w )
-         :  x ( *this, n, 0, m-1 ), l ( *this, m, 0, C   )
+      BinPacking( int n, int m, int C, const vector<int>& w, const vector< vector<int> >& D, int UB )
+         :  x ( *this, n, 0, m-1 ), l ( *this, m, 0, C   ), z ( *this, 0, UB)
       {   
          /// Post binpacking constraint
          binpacking ( *this, l, x, w );
+         /// Add costs to item-bin assignment
+         IntVarArgs y(*this, n, 0, 1000000);
+         for ( int i = 0; i < n; ++i ) {
+            IntSharedArray S(m);
+            for ( int j = 0; j < m; ++j )
+               S[j] = D[i][j];
+            element(*this, S, x[i], y[i]);
+         }
+         linear(*this, y, IRT_EQ, z);
          /// Make some random assignment
          //for ( int i = 0; i < n; ++i )
            // if ( w[i] > C/2 )
@@ -109,24 +85,23 @@ class BinPacking : public Script {
             U[i] = l[i].max();
       }
 
-      void addArcs( DAG& G, int S, int T, int n, int m, int C, const vector<int>& w ) {
-         for ( int i = 0; i < n-2; ++i ) 
-            if ( w[i] + w[i+1] <= C) {
-               for ( IntVarValues j(x[i]); j(); ++j ) {
-                  for ( IntVarValues l(x[i+1]); l(); ++l ) {
-                     if ( j.val() != l.val() ) {
-                        cost_t c = 1.0;
-                        resources R(m,0);
-                        R[l.val()] = w[i+1];
-                        G.addArc( i*m+j.val(), (i+1)*m+l.val(), c, R );
-                     }
+      void addArcs( DAG& G, int S, int T, int n, int m, int C, const vector<int>& w, 
+            const vector< vector<int> >& D ) {
+         for ( int i = 0; i < n-1; ++i ) 
+            for ( IntVarValues j(x[i]); j(); ++j ) {
+               for ( IntVarValues l(x[i+1]); l(); ++l ) {
+                  if ( !(j.val() == l.val() && w[i] + w[i+1] > C) ) {
+                     cost_t c = D[i+1][l.val()];
+                     resources R(m,0);
+                     R[l.val()] = w[i+1];
+                     G.addArc( i*m+j.val(), (i+1)*m+l.val(), c, R );
                   }
                }
             }
          /// Arcs from the source node
          if ( w[0] <= C ) {
             for ( IntVarValues l(x[0]); l(); ++l ) {
-               cost_t c = 1.0;
+               cost_t c = D[0][l.val()];
                resources R(m,0);
                R[l.val()] = w[0];
                G.addArc( S, l.val(), c, R );
@@ -134,7 +109,7 @@ class BinPacking : public Script {
          }
          if ( w[n-1] <= C ) {
             for ( IntVarValues l(x[n-1]); l(); ++l ) {
-               cost_t c = 1.0;
+               cost_t c = 0.0;
                resources R(m,0);
                G.addArc( (n-1)*m+l.val(), T, c, R );
                //fprintf(stdout,"(%d,%d)\t", (n-1)*m+l.val(), T);
@@ -146,9 +121,14 @@ class BinPacking : public Script {
 
 
 /// Find upper bounds to coloring
-void singlePropagation ( int n, int m, int C, const vector<int>& w )
+void singlePropagation ( int n, int m, int C, const vector<int>& w, const vector< vector<int> > D )
 {
-   BinPacking* s = new BinPacking ( n, m, C, w );
+   timer TIMER;
+   cost_t LB = 0;
+   cost_t UB = 250;
+
+   BinPacking* s = new BinPacking ( n, m, C, w, D, UB );
+   
    if ( s->totalDomain() ) {
       /// My filtering 
       resources U(m, 0);
@@ -158,21 +138,18 @@ void singlePropagation ( int n, int m, int C, const vector<int>& w )
       int S = n*m;
       int T = n*m+1;
       DAG G (N, M, U);
-      s->addArcs(G,S,T,n,m,C,w);
+      s->addArcs(G,S,T,n,m,C,w,D);
       /// Try to do filtering 
       if ( !G.isAcyclic() ) {
          fprintf(stdout, "It is not a DAG!\n");
          exit(EXIT_FAILURE);
       }
 
-      timer TIMER;
-      cost_t LB = 0;
-      cost_t UB = n+2;
 
       fprintf(stdout,"LB %.3f \t UB %.3f \t Time %.3f \t Arc removed %d (%d) - Nodes %d (%d)\n", 
             LB, UB, TIMER.elapsed(), int(G.arcsLeft()), int(G.num_arcs()), G.num_nodes(), N);
 
-      //G.filter(S,T,LB,UB);
+      G.filter(S,T,LB,UB);
       fprintf(stdout, "UB0 %.3f - ", UB);
 
       fprintf(stdout,"LB %.3f \t UB %.3f \t Time %.3f \t Arc removed %d (%d) - Nodes %d (%d)\n", 
@@ -206,15 +183,26 @@ int main(int argc, char **argv)
 
    infile >> n >> C;
    vector<int> w(n,0);
-   int w_tot = 0;
+   double w_tot = 0;
    for ( int i = 0; i < n; ++i ) {
       infile >> w[i];
       w_tot += w[i];
    }
 
-   m = w_tot/C + 2;
+   m = int(ceil(w_tot/C) + 5);
 
-   singlePropagation(n,m,C,w);
+   vector< vector<int> > D;
+   for ( int i = 0; i < n; ++i ) {
+      vector<int> row;
+      for ( int j = 0; j < m; j++ ) {
+         row.push_back( rand() % 100 );
+         fprintf(stdout,"%d ", row.back());
+      }
+      fprintf(stdout,"\n");
+      D.push_back( row );
+   }
+      
+   singlePropagation(n,m,C,w,D);
 
    fprintf(stdout,"%.3f\n", TIMER.elapsed());
    

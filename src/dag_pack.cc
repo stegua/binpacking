@@ -86,17 +86,17 @@ DAG::subgradient(node_t Source, node_t Target, cost_t& LB, cost_t& UB) {
    ArcGradView W;
    vector<CostResources> Rf(n);
    vector<CostResources> Rb(n);
-   for ( int v = 0; v < n; ++v ) {
-      Rf[v].setData(0.0,k);
-      Rb[v].setData(0.0,k);
-   }
    for ( int l = 0; l < k; ++l ) 
-      alpha[l] = 0.1;
+      alpha[l] = 0.0;
    /// Subgradient loop
-   for ( int iter = 0; iter < 20; ++iter ) {
-      for ( int l = 0; l < k; ++l ) 
-         fprintf(stdout," %.5f",alpha[l]);
-      fprintf(stdout," LAGG\n");
+   for ( int iter = 0; iter < 10; ++iter ) {
+      for ( int v = 0; v < n; ++v ) {
+         Rf[v].setData(0.0,k);
+         Rb[v].setData(0.0,k);
+      }
+      //for ( int l = 0; l < k; ++l ) 
+         //fprintf(stdout," %.5f",alpha[l]);
+      //fprintf(stdout," LAGG\n");
       /// Initialize new arc costs
       for ( NodeIter nit = N.begin(), nit_end = N.end(); nit != nit_end; ++nit ) {
          for ( FSArcIterPair it = nit->getIterFS(); it.first != it.second; ++it.first ) {
@@ -144,10 +144,7 @@ DAG::subgradient(node_t Source, node_t Target, cost_t& LB, cost_t& UB) {
       cost_t T = f*(UB-LB)/Hsqr;
 
       for ( int l = 0; l < k; ++l )
-         if (U[l] >= 0)
-            alpha[l] = std::max<cost_t>(0.0, alpha[l]+T*H[l]);
-         else  
-            alpha[l] = std::min<cost_t>(0.0, alpha[l]+T*H[l]);
+         alpha[l] = std::max<cost_t>(0.0, alpha[l]+T*H[l]);
    }
 
    return (arcsLeft() < m0);
@@ -243,16 +240,16 @@ void
 DAG::printArcs(int n, int m) {
    vector<int> D(n*m+2,0);
    for ( NodeIter nit = N.begin(), nit_end = N.end(); nit != nit_end; ++nit ) {
-      //bool flag = false;
+      bool flag = false;
       for ( FSArcIterPair it = nit->getIterFS(); it.first != it.second; ++it.first ) {
-         //fprintf(stdout,"%d %d\t", it.first->v, it.first->w);
-    //     flag = true;
+         fprintf(stdout,"%d %d\t", it.first->v, it.first->w);
+         flag = true;
          D[it.first->w]++;
          //int i = it.first->w / m;
          //int j = it.first->w % m;
       }
-//      if (flag)
-  //       fprintf(stdout,"\n");
+      if (flag)
+         fprintf(stdout,"\n");
    }
    int tot = 0;
    for ( int i = 0; i < n; ++i ) {

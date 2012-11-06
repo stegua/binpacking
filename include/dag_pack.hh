@@ -75,7 +75,7 @@ class DAG {
       /// Subgradient
       H0 = 0.0;
       zb = 0.0;
-      f  = 0.5;
+      f  = 6.5;
    }
 
       /// Basic getters
@@ -316,16 +316,17 @@ class DAG {
                      computeCost(Df[v]+Wuv+Db[w]+UB_off) > UB ) {
                   removeArc(a);
                   removed = true;
-               } else { /// Check if better upper bound and feasible for all other resources
-                  if ( Rf[v].estimateCost( *a, Rb[w] ) < UB ) { /// UB is cost of the best feasible path
-                     if ( Rf[v].isPathFeasible(*a,Rb[w],U) ) {
+               }
+               //} else { /// Check if better upper bound and feasible for all other resources
+                  //if ( Rf[v].estimateCost( *a, Rb[w] ) < UB ) { /// UB is cost of the best feasible path
+                     //if ( Rf[v].isPathFeasible(*a,Rb[w],U) ) {
                         /// Build and store the best path
-                        UB = Rf[v].estimateCost( *a, Rb[w] );
-                        assert ( Pf[w] != w || w == Source);  assert ( Pf[v] != v || v == Source);
-                        assert ( Pb[w] != w || w == Target);  assert ( Pb[v] != v || v == Target);
-                     }
-                  }
-               } 	    
+                        //UB = Rf[v].estimateCost( *a, Rb[w] );
+                        //assert ( Pf[w] != w || w == Source);  assert ( Pf[v] != v || v == Source);
+                        //assert ( Pb[w] != w || w == Target);  assert ( Pb[v] != v || v == Target);
+                     //}
+                  //}
+               //} 	    
             }
             return removed;
          }
