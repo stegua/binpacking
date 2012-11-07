@@ -1,8 +1,12 @@
 ## Stefano Gualandi, stefano.gualandi@gmail.com
 ## August, 2012
 
-# Change this file to use a different set of local variable (machine dependant_
-include config.topsy
+# Change this file to use a different set of local variable (machine dependant)
+include config.mac
+
+gegap: ${LIB}/dag_pack.o ${SRC}/gegap.cc
+	${COMPILER} -c ${SRC}/gegap.cc -o ${LIB}/gegap.o -I${GECODE_INCLUDE} -I${BOOST_INCLUDE} -I${INCLUDE}
+	${LINKER} -o ${BIN}/gegap ${LIB}/gegap.o ${LIB}/dag_pack.o ${GECODE_LIB}
 
 gepack: ${LIB}/dag_pack.o ${SRC}/gepack.cc
 	${COMPILER} -c ${SRC}/gepack.cc -o ${LIB}/gepack.o -I${GECODE_INCLUDE} -I${BOOST_INCLUDE} -I${INCLUDE}

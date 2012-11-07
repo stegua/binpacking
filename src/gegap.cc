@@ -50,13 +50,13 @@ class BinPacking : public Script {
          for ( int i = 0; i < n; ++i ) {
             IntSharedArray S(m);
             for ( int j = 0; j < m; ++j )
-               S[j] = D[i][j];
+               S[j] = D[j][i];
             element(*this, S, x[i], y[i]);
          }
          linear(*this, y, IRT_EQ, z);
          /// Make some random assignment
          for ( int i = 0; i < n; ++i )
-            if ( rand() % 1000 > 550 ) {
+            if ( rand() % 1000 > 800 ) {
                //fprintf(stdout,"Fixed x[%d]=%d\t",i,x[i].min());
                rel( *this, x[i], IRT_EQ, x[i].min() );
                status();
@@ -76,9 +76,9 @@ class BinPacking : public Script {
       int totalDomain(void) {
          status();
          int dom = 0;
-         for ( int i = 0; i < x.size(); ++i )
+         for ( int i = 0; i < x.size(); ++i ) 
             for ( IntVarValues v(x[i]); v(); ++v, dom++ );
-         fprintf(stdout,"DomTot %d (%d) %s ",dom, (x.size()*l.size()), (status() ? "OK" : "FAILED"));
+         fprintf(stdout,"DomTot %d %d#%d %s ", dom, z.min(), z.max(), (status() ? "OK" : "FAILED"));
 
          return status();
       }
@@ -101,7 +101,7 @@ class BinPacking : public Script {
             for ( IntVarValues j(x[i]); j(); ++j ) {
                for ( IntVarValues l(x[i+1]); l(); ++l ) {
                   if ( !(j.val() == l.val() && w[i] + w[i+1] > C) ) {
-                     cost_t c = D[i+1][l.val()];
+                     cost_t c = D[l.val()][i+1];
                      resources R(m,0);
                      R[l.val()] = w[i+1];
                      G.addArc( i*m+j.val(), (i+1)*m+l.val(), c, R );
@@ -111,7 +111,7 @@ class BinPacking : public Script {
          /// Arcs from the source node
          if ( w[0] <= C ) {
             for ( IntVarValues l(x[0]); l(); ++l ) {
-               cost_t c = D[0][l.val()];
+               cost_t c = D[l.val()][0];
                resources R(m,0);
                R[l.val()] = w[0];
                G.addArc( S, l.val(), c, R );
@@ -134,7 +134,7 @@ void singlePropagation ( int n, int m, int C, const vector<int>& w, const vector
 {
    timer TIMER;
    cost_t LB = 0;
-   cost_t UB = floor(n*0.895*100);
+   cost_t UB = n*17;
 
    BinPacking* s = new BinPacking ( n, m, C, w, D, LB, UB );
    
@@ -179,33 +179,42 @@ int main(int argc, char **argv)
       fprintf(stderr,"No %s file", argv[1]); 
       exit ( EXIT_FAILURE ); 
    }
-
-   int n = 0;
-   int m = 0;
+   //# FORMAT OF INSTANCES:
+   //#
+   //# resource capacity of agent i (i=1,...,m)
+   
+   int n = 0;  /// items
+   int m = 0;  /// bins (?)
    int C = 0;
 
-   infile >> n >> C;
+   // number of agents (m), number of jobs (n)
+   infile >> m >> n;
+   // for each agent i (i=1,...,m) in turn:
+   //   cost of allocating job j to agent i (j=1,...,n)
+   vector< vector<int> > D;
+   for ( int j = 0; j < m; ++j ) {
+      vector<int> row(n,0);
+      for ( int i = 0; i < n; i++ ) 
+         infile >> row[i];
+      D.push_back( row );
+   }
+   // for each agent i (i=1,...,m) in turn:
+   //   resource consumed in allocating job j to agent i (j=1,...,n)
    vector<int> w(n,0);
-   double w_tot = 0;
+   double w_tot = 0.0;
    for ( int i = 0; i < n; ++i ) {
       infile >> w[i];
       w_tot += w[i];
    }
+   int tmp;
+   for ( int j = 0; j < m-1; ++j ) 
+      for ( int i = 0; i < n; ++i )
+         infile >> tmp;
+   infile >> C;
+   for ( int j = 0; j < m-1; ++j ) 
+      infile >> tmp; 
 
-   m = int(ceil(w_tot/C) + 9);
-
-   vector< vector<int> > D;
-   srand(33);
-   for ( int i = 0; i < n; ++i ) {
-      vector<int> row;
-      for ( int j = 0; j < m; j++ ) 
-         row.push_back( 100*(rand() % 2 + 1) );
-      row[rand() % m] = 0;
-      for ( int j = 0; j < m; j++ ) 
-         fprintf(stdout,"%d ", row[j]);
-      fprintf(stdout,"\n");
-      D.push_back( row );
-   }
+   fprintf(stdout,"%d %d %d\n", n, m, C);
       
    singlePropagation(n,m,C,w,D);
 

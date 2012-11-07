@@ -1,5 +1,6 @@
 #include "dag_pack.hh"
 #include "cost_resources_pack.hh"
+#include <cmath>
 
 /// Remove all the arcs incidient in the node given by <vit>
 void
@@ -86,45 +87,37 @@ DAG::subgradient(node_t Source, node_t Target, cost_t& LB, cost_t& UB) {
    ArcGradView W;
    vector<CostResources> Rf(n);
    vector<CostResources> Rb(n);
+   for ( int v = 0; v < n; ++v ) {
+      Rf[v].setData(0.0,k);
+      Rb[v].setData(0.0,k);
+   }
+   
    for ( int l = 0; l < k; ++l ) 
-      if ( l < k/2 )
-         alpha[l] = 1.0/U[l];
-      else
-         alpha[l] = U[l]+1;
-         
+      alpha[l] = 0.0;
+   
    /// Subgradient loop
-   for ( int iter = 0; iter < 10; ++iter ) {
-      for ( int v = 0; v < n; ++v ) {
-         Rf[v].setData(0.0,k);
-         Rb[v].setData(0.0,k);
-      }
-      for ( int l = 0; l < k; ++l ) 
-         fprintf(stdout," %.5f",alpha[l]);
-      fprintf(stdout," LAGG\n");
+   for ( int iter = 0; iter < 20; ++iter ) {
+      //for ( int l = 0; l < k; ++l ) 
+         //fprintf(stdout," %.5f",alpha[l]);
+      //fprintf(stdout," LAGG\n");
       /// Initialize new arc costs
       for ( NodeIter nit = N.begin(), nit_end = N.end(); nit != nit_end; ++nit ) {
          for ( FSArcIterPair it = nit->getIterFS(); it.first != it.second; ++it.first ) {
             FSArcIter a = it.first;
             a->d = a->c;
             for ( int l = 0; l < k; ++l ) 
-               if ( l < k/2 ) 
-                  a->d += a->r[l]*alpha[l];
-               else
-                  a->d -= a->r[l]*alpha[l];
+               a->d += a->r[l]*alpha[l];
          }
       }
       /// Update offset of the objective function
       UBoff = 0.0;
       for ( int l = 0; l < k; ++l ) 
-         if ( l < k/2 )
-            UBoff -= alpha[l]*U[l];
-         else
-            UBoff += alpha[l]*U[l];
+         UBoff -= alpha[l]*U[l];
       /// Start double shortest path computation
       dag_ssp_all(Source, W, Rf, Pf, Df );
       /// If destination is reachable, update the lower bound
       if ( Pf[Target] != Target ) 
-         LB = std::max<cost_t>(LB,Df[Target]+UBoff);
+         LB = std::max<cost_t>(LB,ceil(Df[Target]+UBoff));
       fprintf(stdout,"%.3f ",LB);
       if ( Pf[Target] == Target || LB + EPS  >= UB ) {
          LB = UB;
@@ -148,13 +141,10 @@ DAG::subgradient(node_t Source, node_t Target, cost_t& LB, cost_t& UB) {
       /// Update subgradients
       cost_t Hsqr = 0.0;
       for ( int l = 0; l < k; ++l ) {
-         if ( l < k/2 ) 
-            H[l] = -U[l] + Rf[Target].r[l];
-         else
-            H[l] = +U[l] - Rf[Target].r[l];
+         H[l] = -U[l] + Rf[Target].r[l];
          Hsqr += H[l]*H[l];
       }
-      cost_t T = f*(UB-LB)/Hsqr;
+      cost_t T = f*(1.0)/Hsqr;
 
       for ( int l = 0; l < k; ++l )
          alpha[l] = std::max<cost_t>(0.0, alpha[l]+T*H[l]);
@@ -211,7 +201,7 @@ DAG::filter( node_t Source, node_t Target, cost_t&LB, cost_t&UB ) {
          }
       }
       /// Cost Based Filtering (if shortest path == UB then it is the optimum)
-      if ( true ) {
+      if ( false ) {
          ArcCostView W;
 
          dag_ssp_all(Source, W,  Rf, Pf,  Df);
@@ -252,16 +242,16 @@ void
 DAG::printArcs(int n, int m) {
    vector<int> D(n*m+2,0);
    for ( NodeIter nit = N.begin(), nit_end = N.end(); nit != nit_end; ++nit ) {
-      //bool flag = false;
+      bool flag = false;
       for ( FSArcIterPair it = nit->getIterFS(); it.first != it.second; ++it.first ) {
-         //fprintf(stdout,"%d %d\t", it.first->v, it.first->w);
-         //flag = true;
+         fprintf(stdout,"%d %d\t", it.first->v, it.first->w);
+         flag = true;
          D[it.first->w]++;
          //int i = it.first->w / m;
          //int j = it.first->w % m;
       }
-      //if (flag)
-         //fprintf(stdout,"\n");
+      if (flag)
+         fprintf(stdout,"\n");
    }
    int tot = 0;
    for ( int i = 0; i < n; ++i ) {

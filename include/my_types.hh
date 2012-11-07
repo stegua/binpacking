@@ -8,7 +8,7 @@
 typedef int32_t   node_t;
 typedef int64_t   edge_t;
 typedef float     cost_t;
-typedef float     resource_t;
+typedef int32_t   resource_t;
 typedef float     dist_t;
 
 #include <vector>
