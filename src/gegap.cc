@@ -23,6 +23,8 @@ using std::vector;
 #include <stdio.h>
 #include <fstream>
 
+#include "cost_binpacking.hh"
+
 #include <gecode/driver.hh>
 using namespace Gecode;
 using namespace Gecode::Int;
@@ -30,23 +32,27 @@ using namespace Gecode::Int;
 #include "dag_pack.hh"
 
 /// Main Script
-class BinPacking : public Script {
+class BinPacking : public MinimizeScript {
    protected:
       /// 
       IntVarArray   x;  
       /// Load variable
       IntVarArray   l;
+      /// Load variable
+      IntVarArray   y;
       /// Cost Variables
       IntVar        z;
    public:
       /// Actual model
-      BinPacking( int n, int m, int C, const vector<int>& w, const vector< vector<int> >& D, int LB, int UB )
-         :  x ( *this, n, 0, m-1 ), l ( *this, m, 0, C   ), z ( *this, LB, UB)
+      BinPacking( int n, int m, int B, const vector<int>& w, const vector< vector<int> >& D, int LB, int UB )
+         :  x ( *this, n, 0, m-1 ), 
+            l ( *this, m, 0, B   ), 
+            y ( *this, n, 0, 1000000 ), 
+            z ( *this, LB, UB )
       {   
          /// Post binpacking constraint
          binpacking ( *this, l, x, w );
          /// Add costs to item-bin assignment
-         IntVarArgs y(*this, n, 0, 1000000);
          for ( int i = 0; i < n; ++i ) {
             IntSharedArray S(m);
             for ( int j = 0; j < m; ++j )
@@ -54,48 +60,55 @@ class BinPacking : public Script {
             element(*this, S, x[i], y[i]);
          }
          linear(*this, y, IRT_EQ, z);
-         /// Make some random assignment
-         for ( int i = 0; i < n; ++i )
-            if ( rand() % 1000 > 800 ) {
-               //fprintf(stdout,"Fixed x[%d]=%d\t",i,x[i].min());
-               rel( *this, x[i], IRT_EQ, x[i].min() );
-               status();
-            }
-      }
+         /// Post cost bin packing constraints
+         IntSharedArray C(n*m);
+         for ( int j = 0; j < m; ++j )
+            for ( int i = 0; i < n; ++i )
+               C[j*m+i] = D[j][i];
+         cost_binpacking(*this, l, x, w, C);
 
-      BinPacking( bool share, BinPacking& s) : Script(share,s) {
+         branch(*this, x, INT_VAR_SIZE_DEGREE_MAX, INT_VAL_MIN);
+      }
+      /// Constructor for cloning \a s
+      BinPacking( bool share, BinPacking& s) : MinimizeScript(share,s) {
          x.update ( *this, share, s.x );
+         l.update ( *this, share, s.l );
+         y.update ( *this, share, s.y );
+         z.update ( *this, share, s.z );
       }
-
       /// Perform copying during cloning
-      virtual Space*
-         copy(bool share) {
-            return new BinPacking(share, *this);
-         }
+      virtual Space* copy(bool share) {
+         return new BinPacking(share, *this);
+      }
+      /// Return cost
+      virtual IntVar cost(void) const {
+         return z;
+      }
+  
+      virtual int getValueSL(void) const { return z.val(); }
+      virtual int getValueUB(void) const { return z.max(); }
+      virtual int getValueLB(void) const { return z.min(); }
 
       int totalDomain(void) {
-         status();
          int dom = 0;
          for ( int i = 0; i < x.size(); ++i ) 
             for ( IntVarValues v(x[i]); v(); ++v, dom++ );
          fprintf(stdout,"DomTot %d %d#%d %s ", dom, z.min(), z.max(), (status() ? "OK" : "FAILED"));
-
          return status();
       }
 
       void getUBs( resources& U ) {
-         status();
          for ( int i = 0; i < l.size(); ++i )
             U[i] = resource_t(l[i].max());
       }
 
       void getLBs( resources& L ) {
-         status();
          for ( int i = 0; i < l.size(); ++i )
             L[i] = resource_t(l[i].min());
       }
 
-      void addArcs( DAG& G, int S, int T, int n, int m, int C, const vector<int>& w, 
+      void addArcs( DAG& G, int S, int T, int n, int m, int C, 
+            const vector<int>& w, 
             const vector< vector<int> >& D ) {
          for ( int i = 0; i < n-1; ++i ) 
             for ( IntVarValues j(x[i]); j(); ++j ) {
@@ -127,18 +140,41 @@ class BinPacking : public Script {
       }
 };
 
+/// SOlve the instance only using CP (no reduced-cost filtering)
+void onlyCP ( int n, int m, int C, const vector<int>& w, const vector< vector<int> > D )
+{
+  /// Solution of the problem
+  Support::Timer t;
+  t.start();
 
+  Search::Options so;
+  
+  BinPacking* s = new BinPacking ( n, m, C, w, D, 0, 1000000 );
+
+  BAB<BinPacking> e(s, so);
+  do {
+     BinPacking* ex = e.next();
+     if ( ex == NULL )
+        break;
+     fprintf(stdout,"Nodes %lu UB %d\n", e.statistics().node, ex->getValueSL());
+     delete ex;
+  } while(true);
+
+  fprintf(stdout,"Nodes %ld\n", e.statistics().node);
+}
 
 /// Find upper bounds to coloring
 void singlePropagation ( int n, int m, int C, const vector<int>& w, const vector< vector<int> > D )
 {
    timer TIMER;
    cost_t LB = 0;
-   cost_t UB = n*17;
+   cost_t UB = 10000000;
 
    BinPacking* s = new BinPacking ( n, m, C, w, D, LB, UB );
    
    if ( s->totalDomain() ) {
+      LB = s->getValueLB();
+      UB = s->getValueUB();
       /// My filtering 
       resources U(m, 0);
       resources L(m, 0);
@@ -216,7 +252,8 @@ int main(int argc, char **argv)
 
    fprintf(stdout,"%d %d %d\n", n, m, C);
       
-   singlePropagation(n,m,C,w,D);
+   //singlePropagation(n,m,C,w,D);
+   onlyCP(n,m,C,w,D);
 
    fprintf(stdout,"%.3f\n", TIMER.elapsed());
    
