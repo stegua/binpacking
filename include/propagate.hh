@@ -113,20 +113,15 @@ namespace Gecode { namespace Int { namespace CostBinPacking {
     * Packing propagator
     *
     */
-
    forceinline
       Pack::Pack(Home home, ViewArray<OffsetView>& l0, ViewArray<Item>& x0, IntView& z0, const IntSharedArray& D0 )
-      : Propagator(home), l(l0), x(x0), z(z0), D(D0), t(0) {
-         //l.subscribe(home,*this,PC_INT_BND);
+      : Propagator(home), l(l0), x(x0), z(z0), D(D0) {
          x.subscribe(home,*this,PC_INT_DOM);
-         //z.subscribe(home,*this,PC_INT_BND);
-         for (int i=x.size(); i--; )
-            t += x[i].size();
       }
 
    forceinline
       Pack::Pack(Space& home, bool shared, Pack& p) 
-      : Propagator(home,shared,p), t(p.t) {
+      : Propagator(home,shared,p) {
          l.update(home,shared,p.l);
          x.update(home,shared,p.x);
          z.update(home,shared,p.z);
@@ -135,9 +130,7 @@ namespace Gecode { namespace Int { namespace CostBinPacking {
 
    forceinline size_t 
       Pack::dispose(Space& home) {
-         //l.cancel(home,*this,PC_INT_BND);
          x.cancel(home,*this,PC_INT_DOM);
-         //z.cancel(home,*this,PC_INT_BND);
          (void) Propagator::dispose(home);
          return sizeof(*this);
       }
