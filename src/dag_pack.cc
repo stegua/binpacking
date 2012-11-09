@@ -79,7 +79,7 @@ DAG::topologicalSortBack(void) {
 
 ///--------------------------------------------------------------------------------
 /// Solve the lagrangian subproblem with a subgradient procedure [B&C1989]
-bool 
+int 
 DAG::subgradient(node_t Source, node_t Target, cost_t& LB, cost_t& UB) {
    /// Return value: true if it has removed at least an arc
    edge_t m0 = arcsLeft();
@@ -116,13 +116,15 @@ DAG::subgradient(node_t Source, node_t Target, cost_t& LB, cost_t& UB) {
       /// Start double shortest path computation
       dag_ssp_all(Source, W, Rf, Pf, Df );
       /// If destination is reachable, update the lower bound
+      if ( Pf[Target] == Target ) 
+         return 2;
+
       if ( Pf[Target] != Target ) 
          LB = std::max<cost_t>(LB,Df[Target]+UBoff);
-      //fprintf(stdout,"%.3f ",LB);
-      if ( Pf[Target] == Target || LB + EPS  >= UB ) {
-         LB = UB;
-         return false;
-      }
+      if ( fabs(LB-ceil(LB)) > 1e-05 )
+         LB = int(ceil(LB));
+      else 
+         LB = int(round(LB));
       /// The shortest path is not the optimum path: compute the reversed path
       dag_ssp_back_all(Target, W, Rb, Pb, Db );
 
@@ -144,152 +146,41 @@ DAG::subgradient(node_t Source, node_t Target, cost_t& LB, cost_t& UB) {
          H[l] = -U[l] + Rf[Target].r[l];
          Hsqr += H[l]*H[l];
       }
-      cost_t T = f*(1.0)/Hsqr;
+      cost_t T = f*(UB-LB)/Hsqr;
 
       for ( int l = 0; l < k; ++l )
          alpha[l] = std::max<cost_t>(0.0, alpha[l]+T*H[l]);
    }
 
-   return (arcsLeft() < m0);
+   if (arcsLeft() < m0)
+      return 1;
+   else
+      return 0;
 }
 
 ///--------------------------------------------------------------------------------
 void
 DAG::filter( node_t Source, node_t Target, cost_t&LB, cost_t&UB ) {
-   bool removed = true;
-   bool newUB = true;
-   cost_t UB_before = UB;     
-
-   /// Data for resource based filtering
-   vector<CostResources> Rf(n);
-   vector<CostResources> Rb(n);
-   while ( removed || newUB ) {
-      for ( int v = 0; v < n; ++v ) {
-         Rf[v].setData(0.0,k);
-         Rb[v].setData(0.0,k);
-      }
-      //fprintf(stdout, "Loop %.1f %.1f\n", LB, UB);
-      /// Stop conditions
-      removed = false; /// MANCA IL CONTROLLO SUGLI ARCHI RIMOSSI !!!
-      newUB = false;
-      UB_before = UB;     
-
-      for ( int l = 0; l < 0; ++l ) {
-         //fprintf(stdout, "filter resource %d\n", l);
-         ArcResView W(l);
-         dag_ssp_all(Source, W, Rf, Pf, Df );
-         fprintf(stdout,"RES %d %f\n",U[l],Df[Target]);
-         if ( Pf[Target] == Target ) {  /// If the destination is no longer reacheable
-            fprintf(stdout, "[feasible] Optimal path found of value UB %.1f\n", UB);
-            LB = UB;
-            return;
-         }
-         dag_ssp_back_all(Target, W, Rb, Pb, Db );
-         /// Reduce the graph
-         for ( NodeIter nit = N.begin(), nit_end = N.end(); nit != nit_end; ) {
-            node_t v = nit->id;
-            if ( v != Source && v != Target && Df[v] + Db[v] > U[l] ) {
-               NodeIter vit = nit;
-               ++nit;
-               clearVertex(vit);
-               removed = true;
-            } else {
-               /// Filter the arcs
-               removed = filterResourceFS(nit, W, Pf, Pb, Df, Db, Rf, Rb, UB, l, Source, Target) || removed;
-               ++nit;	  
-            }
-         }
-      }
-      /// Cost Based Filtering (if shortest path == UB then it is the optimum)
-      if ( false ) {
-         ArcCostView W;
-
-         dag_ssp_all(Source, W,  Rf, Pf,  Df);
-         /// Check for new lower bound
-         if ( Pf[Target] != Target ) {
-            LB = std::max(LB,computeCost(Rf[Target].c));
-            /// Update the best multipliers (those that gave the lower bound)
-         }
-         if ( Pf[Target] == Target || LB+EPS >= UB ) {
-            LB = UB;
-            return;
-         }
-         /// Reverse shortest path tree
-         dag_ssp_back_all(Target, W,  Rb, Pb,  Db);
-         /// Reduce the graph
-         for ( NodeIter nit = N.begin(), nit_end = N.end(); nit != nit_end; ) {
-            node_t v = nit->id;
-            if ( v != Source && v != Target && computeCost(Df[v]+Db[v]) > UB ) {
-               NodeIter vit = nit;
-               ++nit;
-               clearVertex(vit);
-               removed = true;
-            } else {
-               removed = filterCostFS(nit, W, Pf, Pb, Df, Db, Rf, Rb, Source, Target, UB) || removed;
-               ++nit;
-            }
-         }
-      }
-      /// Iterate until an arc is removed, or the upper bound is changed
-      removed = subgradient(Source,Target,LB,UB) || removed;
-      newUB = ( UB_before > UB );
-   }
-   //fprintf(stdout,"Nodes left %d\n",(int)num_nodes());
-      
+   /// Iterate until an arc is removed
+   subgradient(Source,Target,LB,UB);
 }
-
-void
-DAG::printArcs(int n, int m) {
-   vector<int> D(n*m+2,0);
-   for ( NodeIter nit = N.begin(), nit_end = N.end(); nit != nit_end; ++nit ) {
-      //bool flag = false;
-      for ( FSArcIterPair it = nit->getIterFS(); it.first != it.second; ++it.first ) {
-         //fprintf(stdout,"%d %d\t", it.first->v, it.first->w);
-         //flag = true;
-         D[it.first->w]++;
-         //int i = it.first->w / m;
-         //int j = it.first->w % m;
-      }
-      //if (flag)
-         //fprintf(stdout,"\n");
-   }
-   int tot = 0;
-   for ( int i = 0; i < n; ++i ) {
-      int dom = 0;
-      int dif = 0;
-      for ( int j = 0; j < m; ++j ) {
-         if ( D[i*m+j] > 0 ) {
-            dom++;
-            dif++;
-         }
-      }
-      //if ( dif <= 1 )
-         //fprintf(stdout,"#x[%d]=%d \t",i,dom);
-      tot += dom;
-   }
-   fprintf(stdout," DomTot %d\t",tot);
-}
-
 
 /// Filter the arcs
 ExecStatus DAG::filterArcs( int n, int m, ViewArray<Item>& x, Space& home) {
-   for ( int i = 0; i < n; ++i ) 
-      if ( !x[i].bin().assigned() ) {
-         int dom_size = 0;
-         int bin = -1;
-         for ( IntVarValues j(x[i].bin()); j(); ++j ) {
-            if ( Nc[i*m+j.val()].in_degree() > 0 ) {
-               dom_size++;
-               bin = j.val();
-            }
-         }
-         if ( dom_size == 0 )
-            return ES_FAILED;
-         if ( dom_size == 1 ) {
-            fprintf(stdout,"+");
-            GECODE_ME_CHECK(x[i].bin().eq(home, bin));
+   for ( int i = 0; i < n; ++i ) {
+      int dom_size = 0;
+      int bin = -1;
+      for ( IntVarValues j(x[i].bin()); j(); ++j ) {
+         if ( Nc[i*m+j.val()].in_degree() > 0 ) {
+            dom_size++;
+            bin = j.val();
          }
       }
+      if ( dom_size == 0 || (x[i].bin().assigned() && x[i].bin().val() != bin ))
+         return ES_FAILED;
+      if ( dom_size == 1 ) 
+         GECODE_ME_CHECK(x[i].bin().eq(home, bin));
+   }
 
    return ES_NOFIX;
 }

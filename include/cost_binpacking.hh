@@ -111,8 +111,6 @@ namespace Gecode { namespace Int { namespace CostBinPacking {
     IntView z;
     /// Cost of assign processi i to machine j
     IntSharedArray  D;
-    /// Total size of all items
-    int t;
     /// Constructor for posting
     Pack(Home home, ViewArray<OffsetView>& l, ViewArray<Item>& x, IntView& z, const IntSharedArray& D);
     /// Constructor for cloning \a p

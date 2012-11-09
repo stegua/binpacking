@@ -44,11 +44,11 @@ class BinPacking : public MinimizeScript {
       IntVar        z;
    public:
       /// Actual model
-      BinPacking( int n, int m, int B, const vector<int>& w, const vector< vector<int> >& D )
+      BinPacking( int n, int m, int B, const vector<int>& w, const vector< vector<int> >& D, bool cost )
          :  x ( *this, n, 0, m-1 ), 
             l ( *this, m, 0, B   ), 
             y ( *this, n, 0, Limits::max ), 
-            z ( *this,    0, Limits::max )
+            z ( *this,    0, 2000)//Limits::max )
       {   
          /// Post binpacking constraint
          binpacking ( *this, l, x, w );
@@ -62,19 +62,18 @@ class BinPacking : public MinimizeScript {
          linear(*this, y, IRT_EQ, z);
          /// Post cost bin packing constraints
          IntSharedArray C(n*m);
-         int idx = 0;
-         for ( int i = 0; i < n; ++i ) {
-            for ( int j = 0; j < m; ++j, ++idx ) {
+         for ( int i = 0; i < n; ++i ) 
+            for ( int j = 0; j < m; ++j ) 
                C[i*m+j] = D[j][i];
-               //fprintf(stdout,"%d %d %d %d %d\t", j, i, idx, C[i*m+j], C[idx]);
-            }
-            //fprintf(stdout,"\n");
-         }
-         //cost_binpacking(*this, l, x, z, w, C);
-         IntVarArgs zv(1);
-         zv[0] = z;
-         //branch(*this, zv, INT_VAR_SIZE_MIN, INT_VAL_MIN);
-         branch(*this, x,  INT_VAR_SIZE_MIN, INT_VAL_MIN);
+         /// If to use the new constraint 
+         if ( cost )
+            cost_binpacking(*this, l, x, z, w, C);
+
+         //IntVarArgs zv(1);
+         //zv[0] = z;
+         //branch(*this, zv, INT_VAR_SIZE_MIN, INT_VAL_MED);
+        
+         branch(*this, x,  INT_VAR_SIZE_DEGREE_MAX, INT_VAL_MIN);
       }
       /// Constructor for cloning \a s
       BinPacking( bool share, BinPacking& s) : MinimizeScript(share,s) {
@@ -95,60 +94,10 @@ class BinPacking : public MinimizeScript {
       virtual int getValueSL(void) const { return z.val(); }
       virtual int getValueUB(void) const { return z.max(); }
       virtual int getValueLB(void) const { return z.min(); }
-
-      int totalDomain(void) {
-         int dom = 0;
-         for ( int i = 0; i < x.size(); ++i ) 
-            for ( IntVarValues v(x[i]); v(); ++v, dom++ );
-         fprintf(stdout,"DomTot %d %d#%d %s ", dom, z.min(), z.max(), (status() ? "OK" : "FAILED"));
-         return status();
-      }
-
-      void getUBs( resources& U ) {
-         for ( int i = 0; i < l.size(); ++i )
-            U[i] = resource_t(l[i].max());
-      }
-
-      void getLBs( resources& L ) {
-         for ( int i = 0; i < l.size(); ++i )
-            L[i] = resource_t(l[i].min());
-      }
-
-      void addArcs( DAG& G, int S, int T, int n, int m, int C, 
-            const vector<int>& w, 
-            const vector< vector<int> >& D ) {
-         for ( int i = 0; i < n-1; ++i ) 
-            for ( IntVarValues j(x[i]); j(); ++j ) {
-               for ( IntVarValues l(x[i+1]); l(); ++l ) {
-                  if ( !(j.val() == l.val() && w[i] + w[i+1] > C) ) {
-                     cost_t c = D[l.val()][i+1];
-                     resources R(m,0);
-                     R[l.val()] = x[i+1].size();
-                     G.addArc( i*m+j.val(), (i+1)*m+l.val(), c, R );
-                  }
-               }
-            }
-         /// Arcs from the source node
-         for ( IntVarValues h(x[0]); h(); ++h ) 
-            if ( w[0] <= l[h.val()].max() ) {
-               cost_t c = D[h.val()][0];
-               resources R(m,0);
-               R[h.val()] = w[0];
-               G.addArc( S, h.val(), c, R );
-            }
-
-         for ( IntVarValues h(x[n-1]); h(); ++h ) 
-            if ( w[n-1] <= l[h.val()].max() ) {
-               cost_t c = 0.0;
-               resources R(m,0);
-               G.addArc( (n-1)*m+h.val(), T, c, R );
-            }
-         
-      }
 };
 
 /// SOlve the instance only using CP (no reduced-cost filtering)
-void onlyCP ( int n, int m, int C, const vector<int>& w, const vector< vector<int> > D )
+void onlyCP ( int n, int m, int C, const vector<int>& w, const vector< vector<int> > D, bool cost=true )
 {
   /// Solution of the problem
   Support::Timer t;
@@ -156,7 +105,7 @@ void onlyCP ( int n, int m, int C, const vector<int>& w, const vector< vector<in
 
   Search::Options so;
   
-  BinPacking* s = new BinPacking ( n, m, C, w, D );
+  BinPacking* s = new BinPacking ( n, m, C, w, D, cost );
 
   BAB<BinPacking> e(s, so);
   int UB = -1;
@@ -176,48 +125,14 @@ void onlyCP ( int n, int m, int C, const vector<int>& w, const vector< vector<in
         UB, e.statistics().node, e.statistics().memory, TIMER.elapsed());
 }
 
-/// Find upper bounds to coloring
-void singlePropagation ( int n, int m, int C, const vector<int>& w, const vector< vector<int> > D )
-{
-   timer TIMER;
-
-   BinPacking* s = new BinPacking ( n, m, C, w, D );
-   
-   if ( s->totalDomain() ) {
-      cost_t LB = s->getValueLB();
-      cost_t UB = s->getValueUB();
-      /// My filtering 
-      resources U(m, 0);
-      resources L(m, 0);
-      s->status();
-      s->getUBs(U); /// solo upper bounds
-      s->getLBs(L);
-      node_t N = n*m+2;
-      edge_t M = n*m*m;
-      node_t S = n*m;
-      node_t T = n*m+1;
-      DAG G (N, M, U);
-      s->addArcs(G,S,T,n,m,C,w,D);
-
-      fprintf(stdout,"LB %.3f \t UB %.3f \t Time %.3f \t Arc removed %d (%d) - Nodes %d (%d)\n", 
-            LB, UB, TIMER.elapsed(), int(G.arcsLeft()), int(G.num_arcs()), G.num_nodes(), N);
-
-      G.filter(S,T,LB,UB);
-      G.printArcs(n, m);
-
-      fprintf(stdout,"LB %.3f \t UB %.3f \t Time %.3f \t Arc removed %d (%d) - Nodes %d (%d)\n", 
-            LB, UB, TIMER.elapsed(), int(G.arcsLeft()), int(G.num_arcs()), G.num_nodes(), N);
-   }
-}
-
-
-
 /// MAIN PROGRAM
 
 int main(int argc, char **argv)
 {
-   if ( argc != 2 )
+   if ( argc < 2 )
       return EXIT_FAILURE;
+   
+   bool cost = !(argc == 3);
 
    /// Beautify output
    std::ifstream infile(argv[1]); 
@@ -272,8 +187,7 @@ int main(int argc, char **argv)
       C++;
 
    fprintf(stdout,"%d %d %d %d\n", n, m, C0, C);
-   onlyCP(n,m,C,w,D);
-   //singlePropagation(n,m,C,w,D);
+   onlyCP(n,m,C,w,D,cost);
 
    fprintf(stdout,"%.3f\n", TIMER.elapsed());
    

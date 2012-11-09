@@ -324,7 +324,7 @@ class DAG {
       vector<node_t> topologicalSortBack(void);
 
       void clearVertex ( NodeIter vit );
-      bool subgradient ( node_t Source, node_t Target, cost_t& LB, cost_t& UB );
+      int  subgradient ( node_t Source, node_t Target, cost_t& LB, cost_t& UB );
       void filter      ( node_t Source, node_t Target, cost_t& LB, cost_t& UB );
       void printArcs   ( int n, int m ); 
       ExecStatus  filterArcs  ( int n, int m, ViewArray<Item>& x, Space& home);

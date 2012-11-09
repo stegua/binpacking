@@ -11,7 +11,7 @@ namespace Gecode { namespace Int { namespace CostBinPacking {
 
    PropCost
       Pack::cost(const Space&, const ModEventDelta&) const {
-         return PropCost::crazy(PropCost::HI,x.size());
+         return PropCost::cubic(PropCost::HI,x.size());
       }
 
    Actor*
@@ -80,6 +80,14 @@ namespace Gecode { namespace Int { namespace CostBinPacking {
     // Number of bins
     int m = l.size();
 
+    /// Check if SUBSUMED
+    {
+       int i = 0;
+       while ( i<n && x[i].bin().assigned()) { i++; };
+       if ( i == x.size() )
+          return home.ES_SUBSUMED(*this);
+    }
+
     /// Create the graph and propagates: x = x
     cost_t LB = cost_t(z.min());
     cost_t UB = cost_t(z.max());
@@ -96,7 +104,7 @@ namespace Gecode { namespace Int { namespace CostBinPacking {
     DAG G (N, M, U);
 
     /// Build the Directed Acyclic Graph
-    for ( int i = 0; i < n-1; ++i ) 
+    for ( int i = 0; i < n-1; ++i ) {
        for ( IntVarValues j(x[i].bin()); j(); ++j ) {
           for ( IntVarValues h(x[i+1].bin()); h(); ++h ) {
              if ( !(j.val() == h.val() && x[i].size() + x[i+1].size() > l[h.val()].max() ) ) {
@@ -107,6 +115,7 @@ namespace Gecode { namespace Int { namespace CostBinPacking {
              }
           }
        }
+    }
     /// Arcs from the source node
     for ( IntVarValues h(x[0].bin()); h(); ++h ) {
        if ( x[0].size() <= l[h.val()].max() ) {
@@ -123,24 +132,23 @@ namespace Gecode { namespace Int { namespace CostBinPacking {
           G.addArc( (n-1)*m+h.val(), T, c, R );
        }
     }
+
     /// Filter the arcs
-    G.filter(S,T,LB,UB);
-    if ( fabs(LB-ceil(LB)) > 1e-05 )
-       LB = int(ceil(LB));
-    else 
-       LB = int(round(LB));
-    
-    if ( z.min() < int(LB) ) {
-       //fprintf(stdout, "_ %d %.2f %.2f\n", z.min(), LB, UB);
-       GECODE_ME_CHECK(z.gq(home,int(LB)));
-    }
-
-    if ( G.filterArcs(n,m,x,home) == ES_FAILED )
-       return ES_FAILED;
+    int status = G.subgradient(S,T,LB,UB);
+    //G.filter(S,T,LB,UB);
    
-    if ( LB >= UB )
-       return home.ES_SUBSUMED(*this);
+    if ( status == 2 )
+       return ES_FAILED;
 
+    //if ( LB >= UB )
+      // return home.ES_SUBSUMED(*this);
+
+    if ( z.min() < int(LB) ) 
+       GECODE_ME_CHECK(z.gq(home,int(LB)));
+
+    if ( ES_FAILED == G.filterArcs(n,m,x,home) )
+       return ES_FAILED;
+    
     return ES_FIX;
   }
 
