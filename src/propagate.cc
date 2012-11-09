@@ -83,6 +83,7 @@ namespace Gecode { namespace Int { namespace CostBinPacking {
     /// Create the graph and propagates: x = x
     cost_t LB = cost_t(z.min());
     cost_t UB = cost_t(z.max());
+
     resources U(m, 0);
     for ( int i = 0; i < m; ++i )
        U[i] = resource_t(l[i].max());
@@ -99,7 +100,7 @@ namespace Gecode { namespace Int { namespace CostBinPacking {
        for ( IntVarValues j(x[i].bin()); j(); ++j ) {
           for ( IntVarValues h(x[i+1].bin()); h(); ++h ) {
              if ( !(j.val() == h.val() && x[i].size() + x[i+1].size() > l[h.val()].max() ) ) {
-                cost_t c = 1;//D[l.val()][i+1];
+                cost_t c = D[i*m+h.val()];
                 resources R(m,0);
                 R[h.val()] = x[i+1].size();
                 G.addArc( i*m+j.val(), (i+1)*m+h.val(), c, R );
@@ -109,7 +110,7 @@ namespace Gecode { namespace Int { namespace CostBinPacking {
     /// Arcs from the source node
     for ( IntVarValues h(x[0].bin()); h(); ++h ) {
        if ( x[0].size() <= l[h.val()].max() ) {
-          cost_t c = 1;//D[l.val()][0];
+          cost_t c = D[h.val()];
           resources R(m,0);
           R[h.val()] = x[0].size();
           G.addArc( S, h.val(), c, R );
@@ -124,27 +125,33 @@ namespace Gecode { namespace Int { namespace CostBinPacking {
     }
     /// Filter the arcs
     G.filter(S,T,LB,UB);
-
-    if ( z.min() < int(ceil(LB)) ) {
-       fprintf(stdout, "_");
-       GECODE_ME_CHECK(z.gq(home,int(LB)));
-    }
-    if ( z.max() > int(UB) ) {
-       fprintf(stdout, "^");
-       GECODE_ME_CHECK(z.lq(home,int(UB)));
-    }
-
-    G.filterArcs(n,m,x);
+    //if ( fabs(LB-ceil(LB)) > 1e-05 )
+      // LB = ceil(LB);
+    //else 
+       //LB= int(round(LB));
     
+    //if ( z.min() < int(LB) ) {
+       //fprintf(stdout, "_ %d %d %.2f\t", z.min(), int(LB), LB);
+       //GECODE_ME_CHECK(z.gq(home,int(LB)));
+    //}
+    //if ( z.max() > int(UB) ) {
+       //fprintf(stdout, "^");
+       //GECODE_ME_CHECK(z.lq(home,int(UB)));
+    //}
+
+    G.filterArcs(n,m,x,home);
+   
+    if ( LB >= UB )
+       return home.ES_SUBSUMED(*this);
     /// Create the graph and propagates: bs = x
-    if ( false ) {
-       for ( int i = 0; i < n; ++i ) {
-          for ( IntVarValues j(x[i].bin()); j(); ++j )
-             fprintf(stdout,"%d %d %d \t", i, j.val(), D[i*m+j.val()]);
-          fprintf(stdout,"\n");
-       }
-       fprintf(stdout,"\n");
-    }
+    //if ( false ) {
+       //for ( int i = 0; i < n; ++i ) {
+          //for ( IntVarValues j(x[i].bin()); j(); ++j )
+             //fprintf(stdout,"%d %d %d \t", i, j.val(), D[i*m+j.val()]);
+          //fprintf(stdout,"\n");
+       //}
+       //fprintf(stdout,"\n");
+    //}
 
     return ES_NOFIX;
   }

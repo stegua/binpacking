@@ -41,7 +41,6 @@ class DAG {
       const int     k;
 
       vector<Arc>     A;    /// Arcs  container 
-      vector<Node>    Nc;   /// Nodes container
 
       vector<node_t>  Pf;   /// Forward  predecessor vector
       vector<node_t>  Pb;   /// Backward predecessor vector
@@ -60,14 +59,15 @@ class DAG {
       cost_t f;
 
    public:
+      vector<Node>  Nc;   /// Nodes container
       resources     U;  /// Upper limits for the *k* resources
       NodeList      N;  /// List view (Intrusive list)
 
       ///Standard constructor
       DAG ( node_t _n, edge_t _m, const resources& _U ) 
-         : n(_n), m(_m), k(_U.size()), Nc(n), Pf(n), Pb(n), Df(n), Db(n),
+         : n(_n), m(_m), k(_U.size()), Pf(n), Pb(n), Df(n), Db(n),
          Inf(std::numeric_limits<dist_t>::max()),
-         alpha(k,0.0), H(k,0.0), U(_U)
+         alpha(k,0.0), H(k,0.0), Nc(n), U(_U)
    {
       assert( n < std::numeric_limits<node_t>::max()  &&
             m < std::numeric_limits<edge_t>::max() );
@@ -82,7 +82,7 @@ class DAG {
       /// Subgradient
       H0 = 0.0;
       zb = 0.0;
-      f  = 2;
+      f  = 0.5;
    }
 
       /// Basic getters
@@ -327,7 +327,7 @@ class DAG {
       bool subgradient ( node_t Source, node_t Target, cost_t& LB, cost_t& UB );
       void filter      ( node_t Source, node_t Target, cost_t& LB, cost_t& UB );
       void printArcs   ( int n, int m ); 
-      void filterArcs  ( int n, int m, ViewArray<Item>& x);
+      ExecStatus  filterArcs  ( int n, int m, ViewArray<Item>& x, Space& home);
 }; /// End intrusive graph class
 
 #endif /// __MY_DAG_PACK

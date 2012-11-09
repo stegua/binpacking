@@ -117,7 +117,7 @@ DAG::subgradient(node_t Source, node_t Target, cost_t& LB, cost_t& UB) {
       dag_ssp_all(Source, W, Rf, Pf, Df );
       /// If destination is reachable, update the lower bound
       if ( Pf[Target] != Target ) 
-         LB = std::max<cost_t>(LB,ceil(Df[Target]+UBoff));
+         LB = std::max<cost_t>(LB,Df[Target]+UBoff);
       //fprintf(stdout,"%.3f ",LB);
       if ( Pf[Target] == Target || LB + EPS  >= UB ) {
          LB = UB;
@@ -272,20 +272,25 @@ DAG::printArcs(int n, int m) {
 
 
 /// Filter the arcs
-void DAG::filterArcs( int n, int m, ViewArray<Item>& x) {
-   vector<int> D(n*m+2,0);
-   for ( NodeIter nit = N.begin(), nit_end = N.end(); nit != nit_end; ++nit ) 
-      for ( FSArcIterPair it = nit->getIterFS(); it.first != it.second; ++it.first ) 
-         D[it.first->w]++;
-   for ( int i = 0; i < n; ++i ) {
-      int dom_size = 0;
-      for ( int j = 0; j < m; ++j ) {
-         if ( D[i*m+j] > 0 ) 
-            dom_size++;
+ExecStatus DAG::filterArcs( int n, int m, ViewArray<Item>& x, Space& home) {
+   for ( int i = 0; i < n; ++i ) 
+      if ( !x[i].bin().assigned() ) {
+         int dom_size = 0;
+         int bin = -1;
+         for ( IntVarValues j(x[i].bin()); j(); ++j ) {
+            if ( Nc[i*m+j.val()].in_degree() > 0 ) {
+               dom_size++;
+               bin = j.val();
+            }
+         }
+         if ( dom_size == 0 )
+            return ES_FAILED;
+         if ( dom_size == 1 ) {
+            //fprintf(stdout,"+");
+            GECODE_ME_CHECK(x[i].bin().eq(home, bin));
+         }
       }
-      if ( dom_size <= 1 && !x[i].bin().assigned() )
-         fprintf(stdout,".");
-      //GECODE_ME_CHECK(x[i].bin().eq(home,  
-   }
+
+   return ES_NOFIX;
 }
 

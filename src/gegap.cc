@@ -61,18 +61,20 @@ class BinPacking : public MinimizeScript {
          }
          linear(*this, y, IRT_EQ, z);
          /// Post cost bin packing constraints
-         //IntSharedArray C(n*m);
-         //int idx = 0;
-         //for ( int i = 0; i < n; ++i ) {
-            //for ( int j = 0; j < m; ++j, ++idx ) {
-               //C[i*m+j] = D[j][i];
+         IntSharedArray C(n*m);
+         int idx = 0;
+         for ( int i = 0; i < n; ++i ) {
+            for ( int j = 0; j < m; ++j, ++idx ) {
+               C[i*m+j] = D[j][i];
                //fprintf(stdout,"%d %d %d %d %d\t", j, i, idx, C[i*m+j], C[idx]);
-            //}
+            }
             //fprintf(stdout,"\n");
-         //}
-         //cost_binpacking(*this, l, x, w, C);
-
-         branch(*this, x, INT_VAR_SIZE_DEGREE_MAX, INT_VAL_MIN);
+         }
+         cost_binpacking(*this, l, x, z, w, C);
+         IntVarArgs zv(1);
+         zv[0] = z;
+         branch(*this, zv, INT_VAR_SIZE_MIN, INT_VAL_MIN);
+         branch(*this, x,  INT_VAR_SIZE_MIN, INT_VAL_MIN);
       }
       /// Constructor for cloning \a s
       BinPacking( bool share, BinPacking& s) : MinimizeScript(share,s) {
