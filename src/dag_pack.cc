@@ -92,11 +92,11 @@ DAG::subgradient(node_t Source, node_t Target, cost_t& LB, cost_t& UB) {
       Rb[v].setData(0.0,k);
    }
    
-   for ( int l = 0; l < k; ++l ) 
-      alpha[l] = 0.0;
+   //for ( int l = 0; l < k; ++l ) 
+      //alpha[l] = 0.0;
    
    /// Subgradient loop
-   for ( int iter = 0; iter < 10; ++iter ) {
+   for ( int iter = 0; iter < 13; ++iter ) {
       //for ( int l = 0; l < k; ++l ) 
          //fprintf(stdout," %.5f",alpha[l]);
       //fprintf(stdout," LAGG\n");

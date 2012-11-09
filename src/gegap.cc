@@ -48,7 +48,7 @@ class BinPacking : public MinimizeScript {
          :  x ( *this, n, 0, m-1 ), 
             l ( *this, m, 0, B   ), 
             y ( *this, n, 0, Limits::max ), 
-            z ( *this,    0, 2000)//Limits::max )
+            z ( *this,    0, Limits::max )
       {   
          /// Post binpacking constraint
          binpacking ( *this, l, x, w );
@@ -96,6 +96,41 @@ class BinPacking : public MinimizeScript {
       virtual int getValueLB(void) const { return z.min(); }
 };
 
+/// Cutoff object for the script
+class MyCutoff : public Search::Stop {
+private:
+  Search::TimeStop*    ts; 
+  Search::MemoryStop*  ms; 
+ 
+  MyCutoff(unsigned int time, unsigned int memory)
+    : ts((time > 0)   ? new Search::TimeStop(time) : NULL),
+      ms((memory > 0) ? new Search::MemoryStop(memory) : NULL) {}
+public:
+  virtual bool stop(const Search::Statistics& s, const Search::Options& o) {
+    return
+      ((ts != NULL) && ts->stop(s,o)) ||
+      ((ms != NULL) && ms->stop(s,o));
+  }
+  virtual bool stopTime(const Search::Statistics& s, const Search::Options& o) {
+    return
+      ((ts != NULL) && ts->stop(s,o));
+  }
+  virtual bool stopMemory(const Search::Statistics& s, const Search::Options& o) {
+    return
+      ((ms != NULL) && ms->stop(s,o));
+  }
+  static Search::Stop*
+  create(unsigned int time, unsigned int memory) {
+    if ((time == 0) && (memory == 0))
+      return NULL;
+    else
+      return new MyCutoff(time,memory);
+  }
+  ~MyCutoff(void) {
+    delete ts; delete ms;
+  }
+};
+
 /// SOlve the instance only using CP (no reduced-cost filtering)
 void onlyCP ( int n, int m, int C, const vector<int>& w, const vector< vector<int> > D, bool cost=true )
 {
@@ -107,11 +142,21 @@ void onlyCP ( int n, int m, int C, const vector<int>& w, const vector< vector<in
   
   BinPacking* s = new BinPacking ( n, m, C, w, D, cost );
 
+  so.stop = MyCutoff::create( 3600*1000, 6*1e+09 );
+  
   BAB<BinPacking> e(s, so);
   int UB = -1;
   int tic = 0;
   do {
      BinPacking* ex = e.next();
+     if ( e.stopped() ) {
+        fprintf(stdout, "%.1f \tWARNING: STOPPED, IT IS ONLY AN UPPER BOUND! ",TIMER.elapsed());
+        MyCutoff* myc = dynamic_cast<MyCutoff *>(so.stop);
+        if ( myc->stopTime(e.statistics(),so) )
+           fprintf(stdout," TIME LIMIT!\n");
+        if ( myc->stopMemory(e.statistics(),so) )
+           fprintf(stdout," MEMORY LIMIT!\n");
+     }
      if ( ex == NULL )
         break;
      UB = ex->getValueSL();

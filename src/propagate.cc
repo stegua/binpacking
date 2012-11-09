@@ -135,13 +135,9 @@ namespace Gecode { namespace Int { namespace CostBinPacking {
 
     /// Filter the arcs
     int status = G.subgradient(S,T,LB,UB);
-    //G.filter(S,T,LB,UB);
    
     if ( status == 2 )
        return ES_FAILED;
-
-    //if ( LB >= UB )
-      // return home.ES_SUBSUMED(*this);
 
     if ( z.min() < int(LB) ) 
        GECODE_ME_CHECK(z.gq(home,int(LB)));
