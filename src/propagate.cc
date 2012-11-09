@@ -100,7 +100,7 @@ namespace Gecode { namespace Int { namespace CostBinPacking {
        for ( IntVarValues j(x[i].bin()); j(); ++j ) {
           for ( IntVarValues h(x[i+1].bin()); h(); ++h ) {
              if ( !(j.val() == h.val() && x[i].size() + x[i+1].size() > l[h.val()].max() ) ) {
-                cost_t c = D[i*m+h.val()];
+                cost_t c = D[(i+1)*m+h.val()];
                 resources R(m,0);
                 R[h.val()] = x[i+1].size();
                 G.addArc( i*m+j.val(), (i+1)*m+h.val(), c, R );
@@ -125,35 +125,23 @@ namespace Gecode { namespace Int { namespace CostBinPacking {
     }
     /// Filter the arcs
     G.filter(S,T,LB,UB);
-    //if ( fabs(LB-ceil(LB)) > 1e-05 )
-      // LB = ceil(LB);
-    //else 
-       //LB= int(round(LB));
+    if ( fabs(LB-ceil(LB)) > 1e-05 )
+       LB = int(ceil(LB));
+    else 
+       LB = int(round(LB));
     
-    //if ( z.min() < int(LB) ) {
-       //fprintf(stdout, "_ %d %d %.2f\t", z.min(), int(LB), LB);
-       //GECODE_ME_CHECK(z.gq(home,int(LB)));
-    //}
-    //if ( z.max() > int(UB) ) {
-       //fprintf(stdout, "^");
-       //GECODE_ME_CHECK(z.lq(home,int(UB)));
-    //}
+    if ( z.min() < int(LB) ) {
+       //fprintf(stdout, "_ %d %.2f %.2f\n", z.min(), LB, UB);
+       GECODE_ME_CHECK(z.gq(home,int(LB)));
+    }
 
-    G.filterArcs(n,m,x,home);
+    if ( G.filterArcs(n,m,x,home) == ES_FAILED )
+       return ES_FAILED;
    
     if ( LB >= UB )
        return home.ES_SUBSUMED(*this);
-    /// Create the graph and propagates: bs = x
-    //if ( false ) {
-       //for ( int i = 0; i < n; ++i ) {
-          //for ( IntVarValues j(x[i].bin()); j(); ++j )
-             //fprintf(stdout,"%d %d %d \t", i, j.val(), D[i*m+j.val()]);
-          //fprintf(stdout,"\n");
-       //}
-       //fprintf(stdout,"\n");
-    //}
 
-    return ES_NOFIX;
+    return ES_FIX;
   }
 
   ExecStatus

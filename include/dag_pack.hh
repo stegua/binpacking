@@ -30,7 +30,7 @@ using namespace Gecode::Int;
 using namespace Gecode::Int::CostBinPacking;
 
 /// Constants
-const cost_t EPS = 1e-09;
+const cost_t EPS = 0.0;//1e-09;
 
 ///--------------------------------------------------------------------------------
 /// Class of graph to compute RCSP with superadditive cost
@@ -50,7 +50,7 @@ class DAG {
       /// Initialize distance vector with Infinity
       /// Maybe it is better to intialize with an upper bound on the optimal path (optimal rcsp path)
       const dist_t Inf;
-      
+
       cost_t UBoff;
       vector<cost_t> alpha;
       vector<cost_t> H;
@@ -82,7 +82,7 @@ class DAG {
       /// Subgradient
       H0 = 0.0;
       zb = 0.0;
-      f  = 0.5;
+      f  = 2.0;
    }
 
       /// Basic getters
@@ -124,7 +124,7 @@ class DAG {
             left += it->out_degree();
          return (m-left);
       }
-      
+
       ///--------------------------------------------------------------------------------
       /// Test if the given graph is acyclic
       bool isAcyclic (void) {

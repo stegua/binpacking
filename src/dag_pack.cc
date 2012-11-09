@@ -286,7 +286,7 @@ ExecStatus DAG::filterArcs( int n, int m, ViewArray<Item>& x, Space& home) {
          if ( dom_size == 0 )
             return ES_FAILED;
          if ( dom_size == 1 ) {
-            //fprintf(stdout,"+");
+            fprintf(stdout,"+");
             GECODE_ME_CHECK(x[i].bin().eq(home, bin));
          }
       }

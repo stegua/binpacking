@@ -70,10 +70,10 @@ class BinPacking : public MinimizeScript {
             }
             //fprintf(stdout,"\n");
          }
-         cost_binpacking(*this, l, x, z, w, C);
+         //cost_binpacking(*this, l, x, z, w, C);
          IntVarArgs zv(1);
          zv[0] = z;
-         branch(*this, zv, INT_VAR_SIZE_MIN, INT_VAL_MIN);
+         //branch(*this, zv, INT_VAR_SIZE_MIN, INT_VAL_MIN);
          branch(*this, x,  INT_VAR_SIZE_MIN, INT_VAL_MIN);
       }
       /// Constructor for cloning \a s
