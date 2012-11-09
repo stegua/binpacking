@@ -136,11 +136,21 @@ namespace Gecode { namespace Int { namespace CostBinPacking {
 
     G.filterArcs(n,m,x);
     
+    /// Create the graph and propagates: bs = x
+    if ( false ) {
+       for ( int i = 0; i < n; ++i ) {
+          for ( IntVarValues j(x[i].bin()); j(); ++j )
+             fprintf(stdout,"%d %d %d \t", i, j.val(), D[i*m+j.val()]);
+          fprintf(stdout,"\n");
+       }
+       fprintf(stdout,"\n");
+    }
+
     return ES_NOFIX;
   }
 
   ExecStatus
-  Pack::post(Home home, ViewArray<OffsetView>& l, ViewArray<Item>& x, IntView& z) {
+  Pack::post(Home home, ViewArray<OffsetView>& l, ViewArray<Item>& x, IntView& z, const IntSharedArray& D) {
     if (x.size() == 0) {
       // No items to be packed
       for (int i=l.size(); i--; )
@@ -162,7 +172,7 @@ namespace Gecode { namespace Int { namespace CostBinPacking {
         GECODE_ME_CHECK(l[j].gq(home,0));
         GECODE_ME_CHECK(l[j].lq(home,s));
       }
-      (void) new (home) Pack(home,l,x,z);
+      (void) new (home) Pack(home,l,x,z,D);
       return ES_OK;
     }
     /// Check also the z variable!

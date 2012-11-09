@@ -8,15 +8,19 @@ namespace Gecode {
              const IntVarArgs& b, 
              const IntVar& z,
              const IntArgs& s,
-             const IntArgs& c,
+             const IntSharedArray& D,
              IntConLevel) {
     using namespace Int;
     if (l.same(home,b))
-      throw ArgumentSame("Int::binpacking");
+      throw ArgumentSame("Int::cost_binpacking");
     if (b.size() != s.size())
-      throw ArgumentSizeMismatch("Int::binpacking");      
+      throw ArgumentSizeMismatch("Int::cost_binpacking");      
+    if (b.size() * l.size() != D.size() )
+      throw ArgumentSizeMismatch("Int::cost_binpacking");      
+
     for (int i=s.size(); i--; )
       Limits::positive(s[i],"Int::binpacking");
+    
     if (home.failed()) return;
 
     ViewArray<OffsetView> lv(home,l.size());
@@ -27,10 +31,10 @@ namespace Gecode {
     for (int i=bs.size(); i--; )
       bs[i] = CostBinPacking::Item(b[i],s[i]);
 
-    Support::quicksort(&bs[0], bs.size());
+    //Support::quicksort(&bs[0], bs.size());
 
     IntView zv(z);
-    GECODE_ES_FAIL(Int::CostBinPacking::Pack::post(home,lv,bs,zv));
+    GECODE_ES_FAIL(Int::CostBinPacking::Pack::post(home,lv,bs,zv,D));
   }
 }
 

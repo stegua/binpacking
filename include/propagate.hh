@@ -115,8 +115,8 @@ namespace Gecode { namespace Int { namespace CostBinPacking {
     */
 
    forceinline
-      Pack::Pack(Home home, ViewArray<OffsetView>& l0, ViewArray<Item>& x0, IntView& z0)
-      : Propagator(home), l(l0), x(x0), z(z0), t(0) {
+      Pack::Pack(Home home, ViewArray<OffsetView>& l0, ViewArray<Item>& x0, IntView& z0, const IntSharedArray& D0 )
+      : Propagator(home), l(l0), x(x0), z(z0), D(D0), t(0) {
          //l.subscribe(home,*this,PC_INT_BND);
          x.subscribe(home,*this,PC_INT_BND);
          for (int i=x.size(); i--; )
@@ -129,6 +129,7 @@ namespace Gecode { namespace Int { namespace CostBinPacking {
          l.update(home,shared,p.l);
          x.update(home,shared,p.x);
          z.update(home,shared,p.z);
+         D.update(home,shared,p.D);
       }
 
    forceinline size_t 
@@ -138,7 +139,6 @@ namespace Gecode { namespace Int { namespace CostBinPacking {
          (void) Propagator::dispose(home);
          return sizeof(*this);
       }
-
 }}}
 
 // STATISTICS: int-prop

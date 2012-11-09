@@ -1,0 +1,15 @@
+## qsub control script
+# Author: Stefano Gualandi
+
+#PBS -j oe
+#PBS -N GualandiPBS
+#PBS -l cput=01:00:00,ncpus=4,mem=6gb
+#PBS -o prova.log
+#PBS -e prova.err
+#PBS -M stefano.gualandi@unipv.it
+#PBS -m ea
+
+cd /data/gualandi/MySVN/binpacking
+echo $MYFILE > $MYFILE.log
+./bin/gegap $MYFILE >> $MYFILE.log
+

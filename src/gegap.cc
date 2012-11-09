@@ -44,11 +44,11 @@ class BinPacking : public MinimizeScript {
       IntVar        z;
    public:
       /// Actual model
-      BinPacking( int n, int m, int B, const vector<int>& w, const vector< vector<int> >& D, int LB, int UB )
+      BinPacking( int n, int m, int B, const vector<int>& w, const vector< vector<int> >& D )
          :  x ( *this, n, 0, m-1 ), 
             l ( *this, m, 0, B   ), 
-            y ( *this, n, 0, 1000000 ), 
-            z ( *this, LB, UB )
+            y ( *this, n, 0, Limits::max ), 
+            z ( *this,    0, Limits::max )
       {   
          /// Post binpacking constraint
          binpacking ( *this, l, x, w );
@@ -61,11 +61,16 @@ class BinPacking : public MinimizeScript {
          }
          linear(*this, y, IRT_EQ, z);
          /// Post cost bin packing constraints
-         IntSharedArray C(n*m);
-         for ( int j = 0; j < m; ++j )
-            for ( int i = 0; i < n; ++i )
-               C[j*m+i] = D[j][i];
-         cost_binpacking(*this, l, x, z, w, C);
+         //IntSharedArray C(n*m);
+         //int idx = 0;
+         //for ( int i = 0; i < n; ++i ) {
+            //for ( int j = 0; j < m; ++j, ++idx ) {
+               //C[i*m+j] = D[j][i];
+               //fprintf(stdout,"%d %d %d %d %d\t", j, i, idx, C[i*m+j], C[idx]);
+            //}
+            //fprintf(stdout,"\n");
+         //}
+         //cost_binpacking(*this, l, x, w, C);
 
          branch(*this, x, INT_VAR_SIZE_DEGREE_MAX, INT_VAL_MIN);
       }
@@ -122,21 +127,21 @@ class BinPacking : public MinimizeScript {
                }
             }
          /// Arcs from the source node
-         if ( w[0] <= C ) {
-            for ( IntVarValues l(x[0]); l(); ++l ) {
-               cost_t c = D[l.val()][0];
+         for ( IntVarValues h(x[0]); h(); ++h ) 
+            if ( w[0] <= l[h.val()].max() ) {
+               cost_t c = D[h.val()][0];
                resources R(m,0);
-               R[l.val()] = x[0].size();
-               G.addArc( S, l.val(), c, R );
+               R[h.val()] = w[0];
+               G.addArc( S, h.val(), c, R );
             }
-         }
-         if ( w[n-1] <= C ) {
-            for ( IntVarValues l(x[n-1]); l(); ++l ) {
+
+         for ( IntVarValues h(x[n-1]); h(); ++h ) 
+            if ( w[n-1] <= l[h.val()].max() ) {
                cost_t c = 0.0;
                resources R(m,0);
-               G.addArc( (n-1)*m+l.val(), T, c, R );
+               G.addArc( (n-1)*m+h.val(), T, c, R );
             }
-         }
+         
       }
 };
 
@@ -149,32 +154,36 @@ void onlyCP ( int n, int m, int C, const vector<int>& w, const vector< vector<in
 
   Search::Options so;
   
-  BinPacking* s = new BinPacking ( n, m, C, w, D, 0, 1000000 );
+  BinPacking* s = new BinPacking ( n, m, C, w, D );
 
   BAB<BinPacking> e(s, so);
+  int UB = -1;
+  int tic = 0;
   do {
      BinPacking* ex = e.next();
      if ( ex == NULL )
         break;
-     fprintf(stdout,"Nodes %lu UB %d\n", e.statistics().node, ex->getValueSL());
+     UB = ex->getValueSL();
+     if ( tic++ % 13 == 0 )
+        fprintf(stdout,"UB %d Nodes %ld Memory %ld Time %.3f\n", 
+              UB, e.statistics().node, e.statistics().memory, TIMER.elapsed());
      delete ex;
   } while(true);
 
-  fprintf(stdout,"Nodes %ld\n", e.statistics().node);
+  fprintf(stdout,"SL %d Nodes %ld Memory %ld Time %.3f\n", 
+        UB, e.statistics().node, e.statistics().memory, TIMER.elapsed());
 }
 
 /// Find upper bounds to coloring
 void singlePropagation ( int n, int m, int C, const vector<int>& w, const vector< vector<int> > D )
 {
    timer TIMER;
-   cost_t LB = 0;
-   cost_t UB = 10000000;
 
-   BinPacking* s = new BinPacking ( n, m, C, w, D, LB, UB );
+   BinPacking* s = new BinPacking ( n, m, C, w, D );
    
    if ( s->totalDomain() ) {
-      LB = s->getValueLB();
-      UB = s->getValueUB();
+      cost_t LB = s->getValueLB();
+      cost_t UB = s->getValueUB();
       /// My filtering 
       resources U(m, 0);
       resources L(m, 0);
@@ -230,7 +239,7 @@ int main(int argc, char **argv)
    vector< vector<int> > D;
    for ( int j = 0; j < m; ++j ) {
       vector<int> row(n,0);
-      for ( int i = 0; i < n; i++ ) 
+      for ( int i = 0; i < n; ++i ) 
          infile >> row[i];
       D.push_back( row );
    }
@@ -250,10 +259,19 @@ int main(int argc, char **argv)
    for ( int j = 0; j < m-1; ++j ) 
       infile >> tmp; 
 
-   fprintf(stdout,"%d %d %d\n", n, m, C);
-      
-   //singlePropagation(n,m,C,w,D);
+   //for ( int j = 0; j < m; ++j ) {
+      //for ( int i = 0; i < n; ++i )
+         //fprintf(stdout,"%d ",D[j][i]);
+      //fprintf(stdout, "\n");
+   //}
+
+   int C0 = C;
+   while ( w_tot/m > C )
+      C++;
+
+   fprintf(stdout,"%d %d %d %d\n", n, m, C0, C);
    onlyCP(n,m,C,w,D);
+   //singlePropagation(n,m,C,w,D);
 
    fprintf(stdout,"%.3f\n", TIMER.elapsed());
    
