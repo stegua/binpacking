@@ -96,7 +96,7 @@ DAG::subgradient(node_t Source, node_t Target, cost_t& LB, cost_t& UB) {
       alpha[l] = 0.0;
    
    /// Subgradient loop
-   for ( int iter = 0; iter < 20; ++iter ) {
+   for ( int iter = 0; iter < 10; ++iter ) {
       //for ( int l = 0; l < k; ++l ) 
          //fprintf(stdout," %.5f",alpha[l]);
       //fprintf(stdout," LAGG\n");
@@ -118,7 +118,7 @@ DAG::subgradient(node_t Source, node_t Target, cost_t& LB, cost_t& UB) {
       /// If destination is reachable, update the lower bound
       if ( Pf[Target] != Target ) 
          LB = std::max<cost_t>(LB,ceil(Df[Target]+UBoff));
-      fprintf(stdout,"%.3f ",LB);
+      //fprintf(stdout,"%.3f ",LB);
       if ( Pf[Target] == Target || LB + EPS  >= UB ) {
          LB = UB;
          return false;
@@ -168,14 +168,14 @@ DAG::filter( node_t Source, node_t Target, cost_t&LB, cost_t&UB ) {
          Rf[v].setData(0.0,k);
          Rb[v].setData(0.0,k);
       }
-      fprintf(stdout, "Loop %.1f %.1f\n", LB, UB);
+      //fprintf(stdout, "Loop %.1f %.1f\n", LB, UB);
       /// Stop conditions
       removed = false; /// MANCA IL CONTROLLO SUGLI ARCHI RIMOSSI !!!
       newUB = false;
       UB_before = UB;     
 
       for ( int l = 0; l < 0; ++l ) {
-         fprintf(stdout, "filter resource %d\n", l);
+         //fprintf(stdout, "filter resource %d\n", l);
          ArcResView W(l);
          dag_ssp_all(Source, W, Rf, Pf, Df );
          fprintf(stdout,"RES %d %f\n",U[l],Df[Target]);
@@ -234,7 +234,7 @@ DAG::filter( node_t Source, node_t Target, cost_t&LB, cost_t&UB ) {
       removed = subgradient(Source,Target,LB,UB) || removed;
       newUB = ( UB_before > UB );
    }
-   fprintf(stdout,"Nodes left %d\n",(int)num_nodes());
+   //fprintf(stdout,"Nodes left %d\n",(int)num_nodes());
       
 }
 
@@ -242,16 +242,16 @@ void
 DAG::printArcs(int n, int m) {
    vector<int> D(n*m+2,0);
    for ( NodeIter nit = N.begin(), nit_end = N.end(); nit != nit_end; ++nit ) {
-      bool flag = false;
+      //bool flag = false;
       for ( FSArcIterPair it = nit->getIterFS(); it.first != it.second; ++it.first ) {
-         fprintf(stdout,"%d %d\t", it.first->v, it.first->w);
-         flag = true;
+         //fprintf(stdout,"%d %d\t", it.first->v, it.first->w);
+         //flag = true;
          D[it.first->w]++;
          //int i = it.first->w / m;
          //int j = it.first->w % m;
       }
-      if (flag)
-         fprintf(stdout,"\n");
+      //if (flag)
+         //fprintf(stdout,"\n");
    }
    int tot = 0;
    for ( int i = 0; i < n; ++i ) {
@@ -263,9 +263,29 @@ DAG::printArcs(int n, int m) {
             dif++;
          }
       }
-      if ( dif <= 1 )
-         fprintf(stdout,"#x[%d]=%d \t",i,dom);
+      //if ( dif <= 1 )
+         //fprintf(stdout,"#x[%d]=%d \t",i,dom);
       tot += dom;
    }
-   fprintf(stdout,"\nDomTot %d\t",tot);
+   fprintf(stdout," DomTot %d\t",tot);
 }
+
+
+/// Filter the arcs
+void DAG::filterArcs( int n, int m, ViewArray<Item>& x) {
+   vector<int> D(n*m+2,0);
+   for ( NodeIter nit = N.begin(), nit_end = N.end(); nit != nit_end; ++nit ) 
+      for ( FSArcIterPair it = nit->getIterFS(); it.first != it.second; ++it.first ) 
+         D[it.first->w]++;
+   for ( int i = 0; i < n; ++i ) {
+      int dom_size = 0;
+      for ( int j = 0; j < m; ++j ) {
+         if ( D[i*m+j] > 0 ) 
+            dom_size++;
+      }
+      if ( dom_size <= 1 && !x[i].bin().assigned() )
+         fprintf(stdout,".");
+      //GECODE_ME_CHECK(x[i].bin().eq(home,  
+   }
+}
+

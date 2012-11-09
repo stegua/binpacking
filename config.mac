@@ -1,8 +1,8 @@
 # Stefano Gualandi, stefano.gualandi@gmail.com
 # last update, October, 2012
 
-OPTFLAG = -O2 -DDEBUG -Wall
-LDFLAGS = -O2 -DDEBUG -lm -lpthread
+OPTFLAG = -O2 -DNDEBUG -Wall
+LDFLAGS = -O2 -DNDEBUG -lm -lpthread
 
 COMPILER    = g++ ${OPTFLAG}
 LINKER      = g++ ${LDFLAGS}

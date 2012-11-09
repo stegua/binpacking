@@ -106,18 +106,20 @@ namespace Gecode { namespace Int { namespace CostBinPacking {
     /// Views for load of bins
     ViewArray<OffsetView> l;
     /// Items with bin and size
-    ViewArray<Item> bs;
+    ViewArray<Item> x;
+    /// Cost variable
+    IntView z;
     /// Total size of all items
     int t;
     /// Constructor for posting
-    Pack(Home home, ViewArray<OffsetView>& l, ViewArray<Item>& bs);
+    Pack(Home home, ViewArray<OffsetView>& l, ViewArray<Item>& x, IntView& z);
     /// Constructor for cloning \a p
     Pack(Space& home, bool share, Pack& p);
   public:
-    /// Post propagator for loads \a l and items \a bs
+    /// Post propagator for loads \a l and items \a x
     GECODE_INT_EXPORT 
     static ExecStatus post(Home home, 
-                           ViewArray<OffsetView>& l, ViewArray<Item>& bs);
+                           ViewArray<OffsetView>& l, ViewArray<Item>& x, IntView& z);
     /// Perform propagation
     GECODE_INT_EXPORT 
     virtual ExecStatus propagate(Space& home, const ModEventDelta& med);
@@ -136,7 +138,9 @@ namespace Gecode { namespace Int { namespace CostBinPacking {
 GECODE_INT_EXPORT void
 cost_binpacking(Home home, 
       const IntVarArgs& l, 
-      const IntVarArgs& b, const IntArgs& s, const IntArgs& C,
+      const IntVarArgs& b, 
+      const IntVar&     z,
+      const IntArgs& s, const IntArgs& C,
       IntConLevel icl=ICL_DEF);
 
 }

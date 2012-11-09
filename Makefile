@@ -2,7 +2,7 @@
 ## August, 2012
 
 # Change this file to use a different set of local variable (machine dependant)
-include config.topsy
+include config.mac
 
 gegap: ${LIB}/dag_pack.o ${LIB}/cost_binpacking.o ${SRC}/gegap.cc
 	${COMPILER} -c ${SRC}/gegap.cc -o ${LIB}/gegap.o -I${GECODE_INCLUDE} -I${BOOST_INCLUDE} -I${INCLUDE}

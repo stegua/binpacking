@@ -6,6 +6,7 @@ namespace Gecode {
   cost_binpacking(Home home, 
              const IntVarArgs& l, 
              const IntVarArgs& b, 
+             const IntVar& z,
              const IntArgs& s,
              const IntArgs& c,
              IntConLevel) {
@@ -28,7 +29,8 @@ namespace Gecode {
 
     Support::quicksort(&bs[0], bs.size());
 
-    GECODE_ES_FAIL(Int::CostBinPacking::Pack::post(home,lv,bs));
+    IntView zv(z);
+    GECODE_ES_FAIL(Int::CostBinPacking::Pack::post(home,lv,bs,zv));
   }
 }
 

@@ -22,6 +22,13 @@ using std::numeric_limits;
 
 #include <stdio.h>
 
+#include <gecode/int.hh>
+using namespace Gecode;
+using namespace Gecode::Int;
+
+#include "cost_binpacking.hh"
+using namespace Gecode::Int::CostBinPacking;
+
 /// Constants
 const cost_t EPS = 1e-09;
 
@@ -320,6 +327,7 @@ class DAG {
       bool subgradient ( node_t Source, node_t Target, cost_t& LB, cost_t& UB );
       void filter      ( node_t Source, node_t Target, cost_t& LB, cost_t& UB );
       void printArcs   ( int n, int m ); 
+      void filterArcs  ( int n, int m, ViewArray<Item>& x);
 }; /// End intrusive graph class
 
 #endif /// __MY_DAG_PACK

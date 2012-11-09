@@ -1,6 +1,6 @@
 #include "cost_binpacking.hh"
 #include <stdio.h>
-
+#include <dag_pack.hh>
 
 namespace Gecode { namespace Int { namespace CostBinPacking {
 
@@ -11,7 +11,7 @@ namespace Gecode { namespace Int { namespace CostBinPacking {
 
    PropCost
       Pack::cost(const Space&, const ModEventDelta&) const {
-         return PropCost::crazy(PropCost::HI,bs.size());
+         return PropCost::crazy(PropCost::HI,x.size());
       }
 
    Actor*
@@ -76,18 +76,72 @@ namespace Gecode { namespace Int { namespace CostBinPacking {
   ExecStatus 
   Pack::propagate(Space& home, const ModEventDelta& med) {
     // Number of items
-    int n = bs.size();
+    int n = x.size();
     // Number of bins
     int m = l.size();
 
-    /// Create the graph and propagates: bs = x
+    /// Create the graph and propagates: x = x
+    cost_t LB = cost_t(z.min());
+    cost_t UB = cost_t(z.max());
+    resources U(m, 0);
+    for ( int i = 0; i < m; ++i )
+       U[i] = resource_t(l[i].max());
+
+    node_t N = n*m+2;
+    edge_t M = n*m*m;
+    node_t S = n*m;
+    node_t T = n*m+1;
+    
+    DAG G (N, M, U);
+
+    /// Build the Directed Acyclic Graph
+    for ( int i = 0; i < n-1; ++i ) 
+       for ( IntVarValues j(x[i].bin()); j(); ++j ) {
+          for ( IntVarValues h(x[i+1].bin()); h(); ++h ) {
+             if ( !(j.val() == h.val() && x[i].size() + x[i+1].size() > l[h.val()].max() ) ) {
+                cost_t c = 1;//D[l.val()][i+1];
+                resources R(m,0);
+                R[h.val()] = x[i+1].size();
+                G.addArc( i*m+j.val(), (i+1)*m+h.val(), c, R );
+             }
+          }
+       }
+    /// Arcs from the source node
+    for ( IntVarValues h(x[0].bin()); h(); ++h ) {
+       if ( x[0].size() <= l[h.val()].max() ) {
+          cost_t c = 1;//D[l.val()][0];
+          resources R(m,0);
+          R[h.val()] = x[0].size();
+          G.addArc( S, h.val(), c, R );
+       }
+    }
+    for ( IntVarValues h(x[n-1].bin()); h(); ++h ) {
+       if ( x[n-1].size() <= l[h.val()].max() ) {
+          cost_t c = 0.0;
+          resources R(m,0);
+          G.addArc( (n-1)*m+h.val(), T, c, R );
+       }
+    }
+    /// Filter the arcs
+    G.filter(S,T,LB,UB);
+
+    if ( z.min() < int(ceil(LB)) ) {
+       fprintf(stdout, "_");
+       GECODE_ME_CHECK(z.gq(home,int(LB)));
+    }
+    if ( z.max() > int(UB) ) {
+       fprintf(stdout, "^");
+       GECODE_ME_CHECK(z.lq(home,int(UB)));
+    }
+
+    G.filterArcs(n,m,x);
     
     return ES_NOFIX;
   }
 
   ExecStatus
-  Pack::post(Home home, ViewArray<OffsetView>& l, ViewArray<Item>& bs) {
-    if (bs.size() == 0) {
+  Pack::post(Home home, ViewArray<OffsetView>& l, ViewArray<Item>& x, IntView& z) {
+    if (x.size() == 0) {
       // No items to be packed
       for (int i=l.size(); i--; )
         GECODE_ME_CHECK(l[i].eq(home,0));
@@ -98,19 +152,20 @@ namespace Gecode { namespace Int { namespace CostBinPacking {
     } else {
       int s = 0;
       // Constrain bins 
-      for (int i=bs.size(); i--; ) {
-        s += bs[i].size();
-        GECODE_ME_CHECK(bs[i].bin().gq(home,0));
-        GECODE_ME_CHECK(bs[i].bin().le(home,l.size()));
+      for (int i=x.size(); i--; ) {
+        s += x[i].size();
+        GECODE_ME_CHECK(x[i].bin().gq(home,0));
+        GECODE_ME_CHECK(x[i].bin().le(home,l.size()));
       }
       // Constrain load
       for (int j=l.size(); j--; ) {
         GECODE_ME_CHECK(l[j].gq(home,0));
         GECODE_ME_CHECK(l[j].lq(home,s));
       }
-      (void) new (home) Pack(home,l,bs);
+      (void) new (home) Pack(home,l,x,z);
       return ES_OK;
     }
+    /// Check also the z variable!
   }
 
 }}}

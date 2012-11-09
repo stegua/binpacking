@@ -65,7 +65,7 @@ class BinPacking : public MinimizeScript {
          for ( int j = 0; j < m; ++j )
             for ( int i = 0; i < n; ++i )
                C[j*m+i] = D[j][i];
-         cost_binpacking(*this, l, x, w, C);
+         cost_binpacking(*this, l, x, z, w, C);
 
          branch(*this, x, INT_VAR_SIZE_DEGREE_MAX, INT_VAL_MIN);
       }
@@ -116,7 +116,7 @@ class BinPacking : public MinimizeScript {
                   if ( !(j.val() == l.val() && w[i] + w[i+1] > C) ) {
                      cost_t c = D[l.val()][i+1];
                      resources R(m,0);
-                     R[l.val()] = w[i+1];
+                     R[l.val()] = x[i+1].size();
                      G.addArc( i*m+j.val(), (i+1)*m+l.val(), c, R );
                   }
                }
@@ -126,7 +126,7 @@ class BinPacking : public MinimizeScript {
             for ( IntVarValues l(x[0]); l(); ++l ) {
                cost_t c = D[l.val()][0];
                resources R(m,0);
-               R[l.val()] = w[0];
+               R[l.val()] = x[0].size();
                G.addArc( S, l.val(), c, R );
             }
          }
