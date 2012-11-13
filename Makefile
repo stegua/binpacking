@@ -2,7 +2,7 @@
 ## August, 2012
 
 # Change this file to use a different set of local variable (machine dependant)
-include config.mac
+include config.topsy
 
 gegap: ${LIB}/dag_pack.o ${LIB}/cost_binpacking.o ${SRC}/gegap.cc
 	${COMPILER} -c ${SRC}/gegap.cc -o ${LIB}/gegap.o -I${GECODE_INCLUDE} -I${BOOST_INCLUDE} -I${INCLUDE}
@@ -30,7 +30,7 @@ ${LIB}/propagate.o: ${LIB}/dag_pack.o ${SRC}/propagate.cc
 # MY LIBRARIES
 #--------------
 ${LIB}/dag_pack.o: ${SRC}/dag_pack.cc
-	${COMPILER} -c ${SRC}/dag_pack.cc -o ${LIB}/dag_pack.o -I${BOOST_INCLUDE} -I${INCLUDE}
+	${COMPILER} -c ${SRC}/dag_pack.cc -o ${LIB}/dag_pack.o -I${BOOST_INCLUDE} -I${INCLUDE} -I${GECODE_INCLUDE}
 
 clean::
 	rm -f *.o
