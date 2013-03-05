@@ -1,0 +1,9 @@
+option solver cplexamp;
+
+
+for {r in K} {
+   let {i in I, j in B} c[i,j] := 0;
+   let {i in I} c[i,r] := A[i,r];
+   solve > log;
+   printf "Bound %d - Optimum %d\n", b[r], Cost;
+}
