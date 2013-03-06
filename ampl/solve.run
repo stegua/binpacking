@@ -1,3 +1,5 @@
+option presolve 0;
+
 option solver cplexamp;
 
 problem MinUB: x, cUB, Assign, Dimensions;

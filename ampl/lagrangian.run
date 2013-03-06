@@ -1,0 +1,40 @@
+option solver cplexamp;
+
+problem Lagrangian: x, cLB, Assign;
+
+param r default 1;
+let {i in I, j in B} c[i,j] := 0;
+let {i in I} c[i,r] := A[i,r];
+
+param LB default 0;
+param fermo default 0;
+param LB0 default LB;
+
+let f := 10;
+for {q in 1..1000} {
+   
+   solve Lagrangian; 
+   let LB := max(cLB,LB);
+
+   let LB0 := LB;
+   let f := f*0.99;
+
+   
+   let {j in B, l in K} G[j,l] := -b[l] + sum {i in I} A[i,l]*x[i,j];
+   let {j in B, l in K} G[j,l] := 1/1.4*(G[j,l] + 0.3*H1[j,l] + 0.1*H2[j,l]);
+
+   if (sum {j in B, l in K} G[j,l]*G[j,l]) = 0 then break;
+
+   let t := f*(b[r]-LB)/(sum {j in B, l in K} G[j,l]*G[j,l]);
+   let {j in B, l in K} alpha[j,l] := max(0, alpha[j,l] + t*G[j,l]);
+
+   printf "%f %f [%.2f,%d]\n", t, f, LB, b[r];
+
+   if t < 1e-09 then break;
+   if LB > b[r] then break;
+   let {j in B, l in K} H2[j,l] := H1[j,l];
+   let {j in B, l in K} H1[j,l] := G[j,l];
+}
+
+solve Lagrangian;
+printf "%f \n", sum {i in I, j in B: x[i,j] = 1} c[i,j]*x[i,j];
