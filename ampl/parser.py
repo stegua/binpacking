@@ -2,6 +2,31 @@
 
 import sys
 
+def printGecode(F):
+    for i in range(36):
+        F.readline()
+        F.readline()
+        line = F.readline().replace(" ","")
+        out = open(str(line[1:].strip())+".txt", "w")
+        out.write("6 18 6\n")
+        for l in range(7):
+            F.readline()
+        for l in range(18):
+            line = F.readline().split()
+            for n in line[1:]:
+                out.write(n)
+                out.write(" ")
+            out.write("\n")
+        for l in range(4):
+            F.readline()
+        line = F.readline().split()
+        for n in line[1:]:
+            out.write(n+" ")
+        for l in range(7):
+            F.readline()
+        out.write("\n")
+        out.close()
+
 def printAMPL(F):
     for i in range(36):
         F.readline()
@@ -33,4 +58,4 @@ def printAMPL(F):
 
 # MAIN PART
 F = open(sys.argv[1], 'r')
-printAMPL(F)
+printGecode(F)

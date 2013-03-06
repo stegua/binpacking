@@ -25,3 +25,4 @@ s.t. Assign {i in I}:
 
 s.t. Dimensions {j in B, l in K}:
    sum {i in I} A[i,l]*x[i,j] <= b[l];
+

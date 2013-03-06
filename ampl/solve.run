@@ -13,5 +13,5 @@ for {r in K} {
   
    problem MaxLB;
    solve MaxLB;
-   printf "Capacity %d - Bounds [%d,%d]\n", b[r], tmp, cLB;
+   printf "%d#[%.2f,%d]\n", b[r], cLB, tmp;
 }

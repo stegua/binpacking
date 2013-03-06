@@ -1,8 +1,12 @@
 ## Stefano Gualandi, stefano.gualandi@gmail.com
-## August, 2012
+## March, 2013
 
 # Change this file to use a different set of local variable (machine dependant)
 include config.topsy
+
+gecode_multibin: ${SRC}/gecode_multibin.cc
+	${COMPILER} -c ${SRC}/gecode_multibin.cc -o ${LIB}/gecode_multibin.o -I${GECODE_INCLUDE} -I${BOOST_INCLUDE} -I${INCLUDE}
+	${LINKER} -o ${BIN}/gecode_multibin ${LIB}/gecode_multibin.o ${GECODE_LIB}
 
 gegap: ${LIB}/dag_pack.o ${LIB}/cost_binpacking.o ${SRC}/gegap.cc
 	${COMPILER} -c ${SRC}/gegap.cc -o ${LIB}/gegap.o -I${GECODE_INCLUDE} -I${BOOST_INCLUDE} -I${INCLUDE}
