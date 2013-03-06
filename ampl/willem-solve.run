@@ -1,0 +1,3 @@
+option solver cplexamp;
+
+solve;

@@ -1,9 +1,17 @@
 option solver cplexamp;
 
+problem MinUB: x, cUB, Assign, Dimensions;
+problem MaxLB: x, cLB, Assign, Dimensions;
 
+param tmp default 0;
 for {r in K} {
    let {i in I, j in B} c[i,j] := 0;
    let {i in I} c[i,r] := A[i,r];
-   solve > log;
-   printf "Bound %d - Optimum %d\n", b[r], Cost;
+   
+   solve MinUB; 
+   let tmp := cUB;
+  
+   problem MaxLB;
+   solve MaxLB;
+   printf "Capacity %d - Bounds [%d,%d]\n", b[r], tmp, cLB;
 }
