@@ -6,10 +6,9 @@ problem MinUB: x, cUB, Assign, Dimensions;
 problem MaxLB: x, cLB, Assign, Dimensions;
 
 param tmp default 0;
-for {r in K} {
-   let {i in I, j in B} c[i,j] := 0;
-   let {i in I} c[i,r] := A[i,r];
-   
+for {t in K} {
+   let r := t; 
+
    solve MinUB; 
    let tmp := cUB;
   
