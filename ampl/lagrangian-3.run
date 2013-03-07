@@ -1,0 +1,41 @@
+option solver cplexamp;
+problem PP1: x, P1, Assign;
+problem PP2: y, P2, Dimensions;
+
+param r default 1;
+let {i in I, j in B} c[i,j] := 0;
+let {i in I} c[i,r] := A[i,r];
+
+param LB default 0;
+param fermo default 0;
+param LB0 default LB;
+
+let f := 0.1;
+for {q in 1..500} {
+   
+   solve PP1; 
+   solve PP2;
+   let LB := max(P1+P2,LB);
+
+   if LB0 = LB then let fermo := fermo + 1;
+   let LB0 := LB;
+  
+   if fermo mod 20 = 0 then
+      let f := f*0.99;
+
+   let {i in I, j in B} G[i,j] := -x[i,j]+y[i,j];
+   #let {i in I, j in B} G[i,j] := 1/1.4*(G[i,j] + 0.3*H1[i,j] + 0.1*H2[i,j]);
+
+   if (sum {i in I, j in B} G[i,j]*G[i,j]) = 0 then break;
+
+   let t := f*(b[r]-LB)/(sum {i in I, j in B} G[i,j]*G[i,j]);
+   let {i in I, j in B} alpha[i,j] := alpha[i,j] + t*G[i,j];
+
+   printf "%f %f [%.2f,%d]\n", t, f, LB, b[r];
+
+   if t < 1e-09 then break;
+   if LB > b[r] then break;
+   let {i in I, j in B} H2[i,j] := H1[i,j];
+   let {i in I, j in B} H1[i,j] := G[i,j];
+}
+
