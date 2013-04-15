@@ -30,7 +30,7 @@ using namespace Gecode::Int;
 using namespace Gecode::Int::CostBinPacking;
 
 /// Constants
-const cost_t EPS = 0.0;//1e-09;
+const cost_t EPS = 1e-09;
 
 ///--------------------------------------------------------------------------------
 /// Class of graph to compute RCSP with superadditive cost
@@ -42,8 +42,8 @@ class DAG {
 
       vector<Arc>     A;    /// Arcs  container 
 
-      vector<node_t>  Pf;   /// Forward  predecessor vector
-      vector<node_t>  Pb;   /// Backward predecessor vector
+      vector<edge_t>  Pf;   /// Forward  predecessor vector
+      vector<edge_t>  Pb;   /// Backward predecessor vector
       vector<dist_t>  Df;   /// Forward  distance vector
       vector<dist_t>  Db;   /// Backward distance vector
 
@@ -59,11 +59,11 @@ class DAG {
       cost_t f;
 
    public:
-      vector<Node>  Nc;   /// Nodes container
+      vector<Node>  Nc; /// Nodes container
       resources     U;  /// Upper limits for the *k* resources
       NodeList      N;  /// List view (Intrusive list)
-
-      ///Standard constructor
+      
+      /// Standard constructor
       DAG ( node_t _n, edge_t _m, const resources& _U ) 
          : n(_n), m(_m), k(_U.size()), Pf(n), Pb(n), Df(n), Db(n),
          Inf(std::numeric_limits<dist_t>::max()),
@@ -82,13 +82,16 @@ class DAG {
       /// Subgradient
       H0 = 0.0;
       zb = 0.0;
-      f  = 2.0;
+      f  = 1.3;
    }
 
       /// Basic getters
       inline node_t num_nodes(void) const { return N.size(); }
       inline edge_t num_arcs(void)  const { return A.size(); }
 
+      inline Arc getArc(edge_t id) const { return A[id]; }
+      inline int getKap(void)      const { return k;     }
+      
       /// Basic setter: called only by the constructor
       void addArc( node_t i, node_t j, cost_t c, const resources& r ) {    
          edge_t arc_id = static_cast<edge_t>(A.size());
@@ -134,9 +137,8 @@ class DAG {
       ///--------------------------------------------------------------------------------
       /// Shortest Path for a DAG: record only predecessor and length of each node
       template <class LengthMap>
-         void
-         dag_ssp ( node_t S, const LengthMap& W,
-               vector<node_t>& P, vector<dist_t>& D ) {    
+         void dag_ssp ( node_t S, const LengthMap& W,
+               vector<edge_t>& P, vector<dist_t>& D ) {    
             /// Initialize predecessor and distance vectors
             for ( NodeIter it = N.begin(), it_end = N.end(); it != it_end; ++it ) {
                P[it->id] = it->id;
@@ -159,7 +161,7 @@ class DAG {
                      dist_t Wuv = static_cast<dist_t>(W(*it.first));
                      if ( D[v] > D[u] + Wuv ) {
                         D[v] = D[u] + Wuv; 
-                        P[v] = u;
+                        P[v] = (it.first)->id;
                      }
                   }
                }
@@ -171,7 +173,7 @@ class DAG {
       template <class LengthMap>
          void
          dag_ssp_back ( node_t S, const LengthMap& W,
-               vector<node_t>& P, vector<dist_t>& D ) {
+               vector<edge_t>& P, vector<dist_t>& D ) {
             /// Initialize predecessor vector
             for ( NodeIter it = N.begin(), it_end = N.end(); it != it_end; ++it ) {
                P[it->id] = it->id;
@@ -192,7 +194,7 @@ class DAG {
                      dist_t Wuv = static_cast<dist_t>(W(*it.first));
                      if ( D[v] > D[u] + Wuv ) {
                         D[v] = D[u] + Wuv; /// Arc Length
-                        P[v] = u;
+                        P[v] = (it.first)->id;
                      }
                   }
                }
@@ -204,7 +206,7 @@ class DAG {
       template <class LengthMap>
          void
          dag_ssp_all ( node_t S, const LengthMap& W, vector<CostResources>& R,
-               vector<node_t>& P, vector<dist_t>& D ) {
+               vector<edge_t>& P, vector<dist_t>& D ) {
             /// Initialize predecessor vector
             for ( NodeIter it = N.begin(), it_end = N.end(); it != it_end; ++it ) {
                P[it->id] = it->id;
@@ -225,7 +227,7 @@ class DAG {
                      dist_t Wuv = static_cast<dist_t>(W(*it.first));
                      if ( D[v] > D[u] + Wuv ) {
                         D[v] = D[u] + Wuv; 
-                        P[v] = u;
+                        P[v] = (it.first)->id;
                         R[v].add(R[u], *it.first);
                      }
                   }
@@ -238,7 +240,7 @@ class DAG {
       template <class LengthMap>
          void
          dag_ssp_back_all ( node_t S, const LengthMap& W, vector<CostResources>& R,
-               vector<node_t>& P, vector<dist_t>& D ) {
+               vector<edge_t>& P, vector<dist_t>& D ) {
             /// Initialize predecessor vector
             for ( NodeIter it = N.begin(), it_end = N.end(); it != it_end; ++it ) {
                P[it->id] = it->id;
@@ -259,7 +261,7 @@ class DAG {
                      dist_t Wuv = static_cast<dist_t>(W(*it.first));
                      if ( D[v] > D[u] + Wuv ) {
                         D[v] = D[u] + Wuv; /// Arc Length
-                        P[v] = u;
+                        P[v] = (it.first)->id;
                         R[v].add(R[u], *it.first);
                      }
                   }
@@ -270,7 +272,7 @@ class DAG {
       /// Filter the forward star of a vertex
       template <class LengthMap>
          bool filterResourceFS(NodeIter vit, const LengthMap& W,
-               const vector<node_t>& Pf, const vector<node_t>& Pb,
+               const vector<edge_t>& Pf, const vector<edge_t>& Pb,
                const vector<dist_t>& Df, const vector<dist_t>& Db,
                const vector<CostResources>& Rf, const vector<CostResources>& Rb,
                cost_t& UB, int l, node_t Source, node_t Target) 
@@ -296,7 +298,7 @@ class DAG {
       /// Filter the forward star of a vertex with the cost
       template <class LengthMap>
          bool filterCostFS(NodeIter vit, const LengthMap& W,
-               const vector<node_t>& Pf, const vector<node_t>& Pb,
+               const vector<edge_t>& Pf, const vector<edge_t>& Pb,
                const vector<dist_t>& Df, const vector<dist_t>& Db,
                const vector<CostResources>& Rf, const vector<CostResources>& Rb,
                node_t Source, node_t Target, cost_t& UB, cost_t UB_off=EPS ) 
@@ -323,10 +325,11 @@ class DAG {
       vector<node_t> topologicalSort(void);
       vector<node_t> topologicalSortBack(void);
 
-      void clearVertex ( NodeIter vit );
-      int  subgradient ( node_t Source, node_t Target, cost_t& LB, cost_t& UB );
-      void filter      ( node_t Source, node_t Target, cost_t& LB, cost_t& UB );
-      void printArcs   ( int n, int m ); 
+      void clearVertex   ( NodeIter vit );
+      int  subgradient   ( node_t Source, node_t Target, cost_t& LB, cost_t& UB );
+      int  cuttingPlanes ( node_t Source, node_t Target, cost_t& LB, cost_t& UB );
+      int  filter        ( node_t Source, node_t Target, cost_t& LB, cost_t& UB );
+      void printArcs     ( int n, int m ); 
       ExecStatus  filterArcs  ( int n, int m, ViewArray<Item>& x, Space& home);
 }; /// End intrusive graph class
 

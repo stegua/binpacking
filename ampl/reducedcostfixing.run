@@ -1,0 +1,26 @@
+option presolve 0;
+
+option solver cplex;
+
+problem MinUB: x, MinLoad, Assign, Dimensions;
+
+param tmp default 0;
+set fixed within I cross B default {};
+param U default 0;
+for {t in K} {
+   let r := t;
+   let U := b[r];
+   solve MinUB; 
+
+   for {i in I, j in B} {
+      if x[i,j].rc > 1 and x[i,j].status = "low" then
+      display x[i,j].status, x[i,j], x[i,j].rc, (U-MinLoad)/x[i,j].rc;
+   }
+   #for {i in I} {
+    #  if solve_result == "infeasible" or MinLoad > b[r] then { let tmp := tmp + 1; let fixed := fixed union {(i,r)}; }
+#      if solve_result == "infeasible" then { let tmp := tmp + 1; let fixed := fixed union {(i,r)}; }
+#      printf "LOG %s %d %.2f\n", solve_result, b[r], MinLoad;
+   #}
+#   printf "LOG\n";
+}
+

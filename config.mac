@@ -15,12 +15,14 @@ LIB             = ${MYHOME}/lib
 SRC             = ${MYHOME}/src
 
 # Directory for the Boost library
-BOOST_INCLUDE   = /usr/local/include
-BOOST_LIB       = /usr/local/lib
+BOOST_INCLUDE   = /Users/gualandi/LIBS/boost/include
+BOOST_LIB       = /Users/gualandi/LIBS/boost/lib
 
 # Gurobi directory
-GECODE_INCLUDE  = /Users/stegua/Programming/SRC/gecode-3.7.1/
-GECODE_LIB      = -L/Users/stegua/Programming/SRC/gecode-3.7.1 \
+GECODE_INCLUDE  = /Users/gualandi/LIBS/gecode/include
+GECODE_LIB      = -L/Users/gualandi/LIBS/gecode/lib \
    -lgecodedriver -lgecodeint -lgecodekernel -lgecodeminimodel \
    -lgecodesearch -lgecodeset -lgecodesupport 
 
+# Configure the path for QSopt
+QSOPT = /Users/gualandi/LIBS/qsopt

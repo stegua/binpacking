@@ -2,7 +2,13 @@
 ## March, 2013
 
 # Change this file to use a different set of local variable (machine dependant)
-include config.topsy
+include config.mac
+
+multibinpacking: ${LIB}/path.o ${LIB}/dag_pack.o ${SRC}/multibinpacking.cc
+	${COMPILER} -c ${SRC}/multibinpacking.cc -o ${LIB}/multibinpacking.o \
+		-I${QSOPT} -I${BOOST_INCLUDE} -I${INCLUDE} -I${GECODE_INCLUDE}
+	${LINKER} -o ${BIN}/multibinpacking ${LIB}/multibinpacking.o ${LIB}/dag_pack.o ${LIB}/path.o \
+		${GECODE_LIB} ${QSOPT}/qsopt.a
 
 gecode_multibin: ${SRC}/gecode_multibin.cc
 	${COMPILER} -c ${SRC}/gecode_multibin.cc -o ${LIB}/gecode_multibin.o -I${GECODE_INCLUDE} -I${BOOST_INCLUDE} -I${INCLUDE}
@@ -30,11 +36,14 @@ ${LIB}/cost_binpacking.o: ${LIB}/propagate.o ${LIB}/dag_pack.o ${SRC}/cost_binpa
 ${LIB}/propagate.o: ${LIB}/dag_pack.o ${SRC}/propagate.cc
 	${COMPILER} -c ${SRC}/propagate.cc -o ${LIB}/propagate.o -I${GECODE_INCLUDE} -I${BOOST_INCLUDE} -I${INCLUDE}
 
+${LIB}/path.o: ${LIB}/dag_pack.o ${SRC}/path.cc
+	${COMPILER} -c ${SRC}/path.cc -o ${LIB}/path.o -I${BOOST_INCLUDE} -I${INCLUDE} -I${GECODE_INCLUDE}
+
 #--------------
 # MY LIBRARIES
 #--------------
 ${LIB}/dag_pack.o: ${SRC}/dag_pack.cc
-	${COMPILER} -c ${SRC}/dag_pack.cc -o ${LIB}/dag_pack.o -I${BOOST_INCLUDE} -I${INCLUDE} -I${GECODE_INCLUDE}
+	${COMPILER} -c ${SRC}/dag_pack.cc -o ${LIB}/dag_pack.o -I${QSOPT} -I${BOOST_INCLUDE} -I${INCLUDE} -I${GECODE_INCLUDE}
 
 clean::
 	rm -f *.o

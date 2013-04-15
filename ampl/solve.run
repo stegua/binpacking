@@ -1,18 +1,18 @@
 option presolve 0;
 
-option solver cplexamp;
+option solver cplex;
 
-problem MinUB: x, cUB, Assign, Dimensions;
-problem MaxLB: x, cLB, Assign, Dimensions;
+problem MinUB: x, MinLoad, Assign, Dimensions;
+problem MaxLB: x, MaxLoad, Assign, Dimensions;
 
 param tmp default 0;
 for {t in K} {
    let r := t; 
 
    solve MinUB; 
-   let tmp := cUB;
-  
-   problem MaxLB;
+   let tmp := MinLoad;
+
    solve MaxLB;
-   printf "%d#[%.2f,%d]\n", b[r], cLB, tmp;
+
+   printf "LOG %s %d#[%.2f,%.2f]\n", solve_result, b[r], tmp, MaxLoad;
 }

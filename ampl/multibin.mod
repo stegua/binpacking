@@ -14,12 +14,16 @@ param r symbolic in K;
 
 param c {I,B} default 0;
 
+#var x {I,B} binary;
 var x {I,B} >= 0, <= 1;
 
-maximize cUB:
-   sum {i in I, j in B} c[i,j]*x[i,j];
+#maximize MaxLoad:
+#   sum {i in I, j in B} c[i,j]*x[i,j];
 
-minimize cLB:
+minimize MinLoad:
+   sum {i in I} A[i,r]*x[i,1];
+
+maximize MaxLoad:
    sum {i in I} A[i,r]*x[i,1];
 
 s.t. Assign {i in I}:
