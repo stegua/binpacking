@@ -62,7 +62,7 @@ class MultiBinPacking : public Script {
             printf("\n");
          }
          /// Branching strategy 
-//         branch(*this, x, INT_VAR_SIZE_DEGREE_MAX, INT_VAL_MIN);
+         branch(*this, x, INT_VAR_SIZE_DEGREE_MAX, INT_VAL_MIN);
       }
       /// Constructor for cloning \a s
       MultiBinPacking( bool share, MultiBinPacking& s) : Script(share,s) {

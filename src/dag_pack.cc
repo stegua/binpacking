@@ -119,10 +119,10 @@ DAG::subgradient(node_t Source, node_t Target, cost_t& LB, cost_t& UB) {
       /// Start double shortest path computation
       dag_ssp_all(Source, W, Rf, Pf, Df );
       /// If destination is reachable, update the lower bound
-      if ( Pf[Target] == Target ) 
+      if ( Pf[Target] == -1 ) 
          return 2;
 
-      if ( Pf[Target] != Target ) 
+      if ( Pf[Target] != -1 ) 
          LB = std::max<cost_t>(LB,Df[Target]+UBoff);
       if ( fabs(LB-ceil(LB)) > 1e-05 )
          LB = int(ceil(LB));
@@ -163,9 +163,9 @@ DAG::subgradient(node_t Source, node_t Target, cost_t& LB, cost_t& UB) {
 
 ///--------------------------------------------------------------------------------
 int
-DAG::filter( node_t Source, node_t Target, cost_t&LB, cost_t&UB ) {
+DAG::filter( node_t Source, node_t Target, cost_t& LB, cost_t& UB ) {
    /// Iterate until an arc is removed
-   //subgradient(Source, Target, LB, UB);
+   //return subgradient(Source, Target, LB, UB);
    return cuttingPlanes(Source, Target, LB, UB);
 }
 
@@ -231,7 +231,7 @@ DAG::cuttingPlanes ( node_t Source, node_t Target, cost_t& LB, cost_t& UB ) {
 
    /// Add the problem variables (u, v_1, ..., v_k)
    /// Add variable |u|
-   error = QSnew_col(model, 1.0, -QS_MAXDOUBLE, k*double(UB), (const char*) NULL);
+   error = QSnew_col(model, 1.0, -QS_MAXDOUBLE, 10*UB, (const char*) NULL);
    if (error) goto QUIT;
 
    /// Add variables |v|  
@@ -244,8 +244,8 @@ DAG::cuttingPlanes ( node_t Source, node_t Target, cost_t& LB, cost_t& UB ) {
    for ( int l = 0; l < k ; ++l ) {
       /// Compute the shortest path using the resource consumption
       dag_ssp(Source, ArcResView(l), Pf, Df);
-      if ( Pf[Target] == Target ) {
-         c_status = 1;
+      if ( Pf[Target] == -1 ) {
+         c_status = 2;
          goto QUIT;
       }
       /// Make the path
@@ -264,8 +264,8 @@ DAG::cuttingPlanes ( node_t Source, node_t Target, cost_t& LB, cost_t& UB ) {
       if (error) goto QUIT;
    }
 
-   error = QSwrite_prob(model, "lag.lp", "LP");
-   if (error) goto QUIT;
+//   error = QSwrite_prob(model, "lag.lp", "LP");
+  // if (error) goto QUIT;
 
    QSset_param (model, QS_PARAM_DUAL_PRICING, QS_PRICE_DDANTZIG);
    do {
@@ -284,7 +284,7 @@ DAG::cuttingPlanes ( node_t Source, node_t Target, cost_t& LB, cost_t& UB ) {
       }
 
       QSget_objval(model, &lb);
-      fprintf(stdout, "LP %f - status %d\t", lb, status);
+      fprintf(stdout, "LP %f - status %d\n", lb, status);
       /// Take the current LP decision vector
       error = QSget_x_array(model, xbar);  /// xbar[0] <-> u; xbar[i+1] <-> v_i
       if (error) goto QUIT;
@@ -298,54 +298,19 @@ DAG::cuttingPlanes ( node_t Source, node_t Target, cost_t& LB, cost_t& UB ) {
             FSArcIter a = it.first;
             a->d = a->c;
             for ( int l = 0; l < k; ++l ) 
-               a->d -= xbar[l+1]*cost_t(a->r[l]);
+               a->d -= xbar[l+1]*a->r[l];
          }
       }
 
-      /// Update offset of the objective function
-      UBoff = 0;
-      for ( int l = 0; l < k; ++l ) 
-         UBoff += xbar[l+1]*cost_t(U[l]);
-      /// Start double shortest path computation
-      dag_ssp_all(Source, W, Rf, Pf, Df );
-      /// If destination is reachable, update the lower bound
-      if ( Pf[Target] == Target ) {
-         fprintf(stdout, "Disconnected\n");
-         c_status = 1;
-         goto QUIT;
-      }
-      fprintf(stdout,"\n");
-
-      if ( Pf[Target] != Target ) 
-         LB = std::max<cost_t>(LB,Df[Target]+UBoff);
-      if ( fabs(LB-ceil(LB)) > 1e-05 )
-         LB = int(ceil(LB));
-      else 
-         LB = int(round(LB));
-      /// The shortest path is not the optimum path: compute the reversed path
-      dag_ssp_back_all(Target, W, Rb, Pb, Db );
-
-      /// Filter first on the vertex and then on the forward star
-      for ( NodeIter nit = N.begin(), nit_end = N.end(); nit != nit_end; ) {
-         node_t v = nit->id;
-         if ( Df[v] + Db[v] + UBoff + EPS > UB && v != Source && v != Target) {
-            NodeIter vit(nit);
-            ++nit;
-            clearVertex(vit);
-         } else {
-            filterCostFS(nit, W, Pf, Pb, Df, Db, Rf, Rb, Source, Target, UB, UBoff ); 
-            ++nit; 
-         }
-      }
-      //dag_ssp(Source, W, Pf, Df);
-      //if ( Pf[Target] == Target ) 
-        // break;
+      dag_ssp(Source, W, Pf, Df);
+      if ( Pf[Target] == -1 ) 
+         exit(EXIT_FAILURE); 
 
       Path path(*this, Source, Target, Pf);
       
       if ( fabs(path.d - u_bar) < EPS || path.d > u_bar + EPS ) {
          QSget_objval(model, &lb);
-         goto QUIT;
+         goto FILTER;
       }
 
       /// First set the variable |u|
@@ -361,8 +326,61 @@ DAG::cuttingPlanes ( node_t Source, node_t Target, cost_t& LB, cost_t& UB ) {
       error = QSadd_row(model, k+1, cind, cval, rhs, 'L', (const char*) NULL);
       if (error) goto QUIT;
 
-   } while ( iter++ < 2000 );
+   } while ( iter++ < 50 );
 
+FILTER:
+   if ( iter < 50 ) {
+      /// Problema di separazione: Cammino Minimo su DAG
+      /// Set the edge scaled weight as: c_e = c_e - v_1.r_e - ... - v_k.r_e
+      for ( NodeIter nit = N.begin(), nit_end = N.end(); nit != nit_end; ++nit ) {
+         for ( FSArcIterPair it = nit->getIterFS(); it.first != it.second; ++it.first ) {
+            FSArcIter a = it.first;
+            a->d = a->c;
+            for ( int l = 0; l < k; ++l ) 
+               a->d -= xbar[l+1]*a->r[l];
+         }
+      }
+
+      /// Update offset of the objective function
+      UBoff = 0;
+      for ( int l = 0; l < k; ++l ) 
+         UBoff += xbar[l+1]*U[l];
+      /// Start double shortest path computation
+      dag_ssp_all(Source, W, Rf, Pf, Df );
+      fprintf(stdout,"LLBB %f \n", UBoff+Df[Target]);
+      /// If destination is reachable, update the lower bound
+      if ( Pf[Target] == -1 ) {
+         fprintf(stdout, "Disconnected\n");
+         c_status = 2;
+         goto QUIT;
+      }
+      fprintf(stdout,"\n");
+
+      LB = std::max<cost_t>(LB,Df[Target]+UBoff);
+
+      //if ( fabs(LB-ceil(LB)) > EPS )
+         //LB = int(ceil(LB));
+      //else 
+         //LB = int(round(LB));
+      /// The shortest path is not the optimum path: compute the reversed path
+      dag_ssp_back_all(Target, W, Rb, Pb, Db );
+
+      /// Filter first on the vertex and then on the forward star
+      for ( NodeIter nit = N.begin(), nit_end = N.end(); nit != nit_end; ) {
+         node_t v = nit->id;
+         if ( Df[v] + Db[v] + UBoff + EPS > UB && v != Source && v != Target) {
+            NodeIter vit(nit);
+            ++nit;
+            clearVertex(vit);
+         } else {
+            filterCostFS(nit, W, Pf, Pb, Df, Db, Rf, Rb, Source, Target, UB, UBoff ); 
+            ++nit; 
+         }
+      }
+   }
+   else
+      c_status = 1;
+   
 QUIT:
    free(cind);
    free(cval);
@@ -371,5 +389,6 @@ QUIT:
    QSfree_prob(model);
 
    LB = std::max<cost_t>(lb, LB);
+
    return c_status;
 }

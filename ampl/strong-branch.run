@@ -7,7 +7,7 @@ problem MinUB: x, MinLoad, Assign, Dimensions;
 param tmp default 0;
 set fixed within I cross B default {};
 
-for {t in K} {
+for {t in B} {
    let r := t; 
 
    for {i in I} {

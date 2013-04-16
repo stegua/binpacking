@@ -11,12 +11,15 @@ using namespace boost;
 
 using namespace boost;
 
+#include <map>
+using std::map;
+
 ///------------------------------------------------------------------------------------------
 /// Main function
 int
 main (int argc, char **argv)
 {
-   if ( argc != 2 ) {
+   if ( argc == 1 ) {
       fprintf(stdout, "usage: ./multibin <filename>\n");
       exit ( EXIT_FAILURE );
    }
@@ -56,12 +59,15 @@ main (int argc, char **argv)
       for ( int l = 0; l < k; ++l )
          U[j*k+l] = b[l];
 
-   fprintf(stdout,"\n");
-   for ( int l = 0; l < K; ++l )
-      fprintf(stdout,"%d ", U[l]);
-   fprintf(stdout,"\n");
+   //fprintf(stdout,"\n");
+   //for ( int l = 0; l < K; ++l )
+      //fprintf(stdout,"%d ", U[l]);
+   //fprintf(stdout,"\n");
 
    DAG G (N, M, U);
+
+   typedef std::pair<int, int> NodePair;
+   map< NodePair, edge_t > As;
    /// Archi da item a item
    for ( int i = 0; i < n-1; ++i ) {
       for ( int j = 0; j < m; ++j ) {
@@ -69,13 +75,11 @@ main (int argc, char **argv)
          for ( int l = 0; l < k; ++l )
             R[j*k+l] = A[i+1][l];
          for ( int h = 0; h < m; ++h ) {
-            //for ( int ll = 0; ll < K; ++ll )
-               //fprintf(stdout,"%d ", R[ll]);
-            //fprintf(stdout,"\t (%d, %d)\n", i*m+h, ((i+1)*m)+j);
-            if ( j == 0 )
-               G.addArc( i*m+h, ((i+1)*m)+j, A[i+1][0], R);
-            else
-               G.addArc( i*m+h, ((i+1)*m)+j, 0, R);
+            //if ( j == 0 )
+               //G.addArc( i*m+h, ((i+1)*m)+j, A[i+1][0], R);
+            //else
+            edge_t arc_id = G.addArc( i*m+h, ((i+1)*m)+j, 0, R);
+            As[make_pair(i*m+h, ((i+1)*m+j))] = arc_id;
          }
       }
    }      
@@ -88,10 +92,11 @@ main (int argc, char **argv)
       //for ( int ll = 0; ll < K; ++ll )
          //fprintf(stdout,"%d ", R[ll]);
       //fprintf(stdout,"\t (%d, %d)\n", S, j);
-      if ( j == 0 )
-         G.addArc( S, j, A[0][0], R);
-      else
-         G.addArc( S, j, 0, R);
+      //if ( j == 0 )
+         //G.addArc( S, j, A[0][0], R);
+      //else
+         edge_t arc_id = G.addArc( S, j, 0, R);
+         As[make_pair(S, j)] = arc_id;
    }
    /// Archi dalla destinazione
    for ( int j = 0; j < m; ++j ) {
@@ -106,19 +111,51 @@ main (int argc, char **argv)
    }
 
    timer TIMER;
-   cost_t LB = 0;
-   cost_t UB = b[0];
    
-   //fprintf(stdout,"LB %.3f \t UB %.3f \t Time %.3f \t Arc removed %d (%d) - Nodes %d (%d)\n", 
-     //    LB, UB, TIMER.elapsed(), int(G.arcsLeft()), int(G.num_arcs()), G.num_nodes(), N);
-
-   int status = G.filter(S,T,LB,UB);
-   //fprintf(stdout, "UB0 %.3f - ", UB);
+   cost_t LB;
+   cost_t UB;
+   int status;
+   int ris = 0;
+   /// Cicla sulle risorse
+   //int l = atoi(argv[2]);
+   for ( int q = 0; q < 1; ++q ) {
+      for ( int l = 0; l < k; ++l ) {
+         ris++;
+         fprintf(stdout, "\n");
+         LB = 0;
+         UB = b[l];
    
-   fprintf(stdout,"LB %.3f \t UB %.3f \t Time %.3f \t Arc removed %d (%d) - Nodes %d (%d) - Status %d\n", 
-         LB, UB, TIMER.elapsed(), int(G.arcsLeft()), int(G.num_arcs()), G.num_nodes(), N, status);
+         /// Archi da item a item
+         for ( int i = 0; i < n-1; ++i ) {
+            for ( int j = 0; j < m; ++j ) {
+               for ( int h = 0; h < m; ++h ) {
+                  if ( j == q )
+                     G.setArcCost(As[make_pair(i*m+h, ((i+1)*m+j))], A[i+1][l]);
+                  else
+                     G.setArcCost(As[make_pair(i*m+h, ((i+1)*m+j))], 0);
+               }
+            }
+         }      
 
-   //G.printArcs(n, m);
+         /// Archi dalla sorgente 
+         for ( int j = 0; j < m; ++j ) {
+            if ( j == q )
+               G.setArcCost( As[make_pair(S, j)], A[0][l]);
+            else
+               G.setArcCost( As[make_pair(S, j)], 0);
+         }
+
+         status = G.filter(S,T,LB,UB);
+
+         fprintf(stdout,"LB %.3f \t UB %.3f \t Time %.3f \t Arc removed %d (%d) - Nodes %d (%d) - Status %d\n", 
+               LB, UB, TIMER.elapsed(), int(G.arcsLeft()), int(G.num_arcs()), G.num_nodes(), N, status);
+         if ( status == 1 )
+            goto QUIT;
+      }
+   }
+QUIT:
+   fprintf(stdout,"LOG \t Time %.3f \t Arc removed %d (%d) - Nodes %d (%d) - Status %d - Ris %d\n", 
+         TIMER.elapsed(), int(G.arcsLeft()), int(G.num_arcs()), G.num_nodes(), N, status, ris);
 
    return 0;
 }

@@ -32,6 +32,7 @@ using namespace Gecode::Int::CostBinPacking;
 /// Constants
 const cost_t EPS = 1e-09;
 
+
 ///--------------------------------------------------------------------------------
 /// Class of graph to compute RCSP with superadditive cost
 class DAG {
@@ -91,9 +92,11 @@ class DAG {
 
       inline Arc getArc(edge_t id) const { return A[id]; }
       inline int getKap(void)      const { return k;     }
-      
+
+      inline void setArcCost(edge_t id, cost_t c) { A[id].c = c; }
+
       /// Basic setter: called only by the constructor
-      void addArc( node_t i, node_t j, cost_t c, const resources& r ) {    
+      edge_t addArc( node_t i, node_t j, cost_t c, const resources& r ) {    
          edge_t arc_id = static_cast<edge_t>(A.size());
          /// Added it once for ever
          A.push_back( Arc() );
@@ -102,6 +105,7 @@ class DAG {
          /// Allocated space once for ever and use view to iterate on them
          Nc[i].addForwArc(A[arc_id]);
          Nc[j].addBackArc(A[arc_id]);
+         return arc_id;
       }
 
       inline void removeArc( FSArcIter a ) {
@@ -141,7 +145,7 @@ class DAG {
                vector<edge_t>& P, vector<dist_t>& D ) {    
             /// Initialize predecessor and distance vectors
             for ( NodeIter it = N.begin(), it_end = N.end(); it != it_end; ++it ) {
-               P[it->id] = it->id;
+               P[it->id] = -1;
                D[it->id] = Inf;
             }
             /// Initialize the source distance
@@ -176,7 +180,7 @@ class DAG {
                vector<edge_t>& P, vector<dist_t>& D ) {
             /// Initialize predecessor vector
             for ( NodeIter it = N.begin(), it_end = N.end(); it != it_end; ++it ) {
-               P[it->id] = it->id;
+               P[it->id] = -1;
                D[it->id] = Inf;
             }
             /// Init the source node
@@ -209,7 +213,7 @@ class DAG {
                vector<edge_t>& P, vector<dist_t>& D ) {
             /// Initialize predecessor vector
             for ( NodeIter it = N.begin(), it_end = N.end(); it != it_end; ++it ) {
-               P[it->id] = it->id;
+               P[it->id] = -1;
                D[it->id] = Inf;
             }
             /// Init the source node
@@ -243,7 +247,7 @@ class DAG {
                vector<edge_t>& P, vector<dist_t>& D ) {
             /// Initialize predecessor vector
             for ( NodeIter it = N.begin(), it_end = N.end(); it != it_end; ++it ) {
-               P[it->id] = it->id;
+               P[it->id] = -1;
                D[it->id] = Inf;
             }
             /// Init the source node
@@ -286,7 +290,7 @@ class DAG {
                ++it.first;  /// First increment the pointer, for safe in-place removals
                node_t w = a->w; /// Arc length (it depends on the LengthView)
                dist_t Wuv = static_cast<dist_t>(W(*a));
-               if ( (v != Source && Pf[v] == v) || (w != Target && Pb[w] == w) || 
+               if ( (v != Source && Pf[v] == -1) || (w != Target && Pb[w] == -1) || 
                      Df[v] + Wuv + Db[w] > U[l] ) {
                   removeArc(a);
                   removed = true;
@@ -301,7 +305,7 @@ class DAG {
                const vector<edge_t>& Pf, const vector<edge_t>& Pb,
                const vector<dist_t>& Df, const vector<dist_t>& Db,
                const vector<CostResources>& Rf, const vector<CostResources>& Rb,
-               node_t Source, node_t Target, cost_t& UB, cost_t UB_off=EPS ) 
+               node_t Source, node_t Target, cost_t& UB, cost_t UB_off ) 
          {
             bool removed = false;
             node_t v = vit->id;
@@ -312,8 +316,9 @@ class DAG {
                ++it.first;  /// First increment the pointer, for safe in-place removals
                node_t w = a->w; /// Arc length (it depends on the LengthView)
                dist_t Wuv = static_cast<dist_t>(W(*a));
-               if ( (v != Source && Pf[v] == v) || (w != Target && Pb[w] == w) || 
-                     computeCost(Df[v]+Wuv+Db[w]+UB_off) > UB ) {
+               fprintf(stdout, "(%d,%d) %.1f %.1f | %.1f %.1f %.1f %.1f\n",v,w,a->c,a->d,Df[v],Wuv,Db[w],UB_off); 
+               if ( (v != Source && Pf[v] == -1) || (w != Target && Pb[w] == -1) || 
+                     computeCost(Df[v]+Wuv+Db[w]+UB_off+EPS) > UB ) {
                   removeArc(a);
                   removed = true;
                }
@@ -330,6 +335,8 @@ class DAG {
       int  cuttingPlanes ( node_t Source, node_t Target, cost_t& LB, cost_t& UB );
       int  filter        ( node_t Source, node_t Target, cost_t& LB, cost_t& UB );
       void printArcs     ( int n, int m ); 
+
+      /// Make it as a propagator   
       ExecStatus  filterArcs  ( int n, int m, ViewArray<Item>& x, Space& home);
 }; /// End intrusive graph class
 

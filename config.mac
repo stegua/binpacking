@@ -4,8 +4,8 @@
 OPTFLAG = -O2 -DNDEBUG -Wall
 LDFLAGS = -O2 -DNDEBUG -lm -lpthread
 
-COMPILER    = g++ ${OPTFLAG}
-LINKER      = g++ ${LDFLAGS}
+COMPILER    = clang++ ${OPTFLAG}
+LINKER      = clang++ ${LDFLAGS}
 
 # Directory for my files
 MYHOME          = ${PWD}
