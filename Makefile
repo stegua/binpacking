@@ -14,13 +14,14 @@ gecode_multibin: ${SRC}/gecode_multibin.cc
 	${COMPILER} -c ${SRC}/gecode_multibin.cc -o ${LIB}/gecode_multibin.o -I${GECODE_INCLUDE} -I${BOOST_INCLUDE} -I${INCLUDE}
 	${LINKER} -o ${BIN}/gecode_multibin ${LIB}/gecode_multibin.o ${GECODE_LIB}
 
-gegap: ${LIB}/dag_pack.o ${LIB}/cost_binpacking.o ${SRC}/gegap.cc
+gegap: ${LIB}/path.o ${LIB}/dag_pack.o ${LIB}/cost_binpacking.o ${SRC}/gegap.cc
 	${COMPILER} -c ${SRC}/gegap.cc -o ${LIB}/gegap.o -I${GECODE_INCLUDE} -I${BOOST_INCLUDE} -I${INCLUDE}
-	${LINKER} -o ${BIN}/gegap ${LIB}/gegap.o ${LIB}/dag_pack.o ${LIB}/cost_binpacking.o ${LIB}/propagate.o ${GECODE_LIB}
+	${LINKER} -o ${BIN}/gegap ${LIB}/gegap.o ${LIB}/dag_pack.o ${LIB}/cost_binpacking.o ${LIB}/propagate.o \
+		${LIB}/path.o ${GECODE_LIB} ${QSOPT}/qsopt.a
 
 gepack: ${LIB}/dag_pack.o ${SRC}/gepack.cc
 	${COMPILER} -c ${SRC}/gepack.cc -o ${LIB}/gepack.o -I${GECODE_INCLUDE} -I${BOOST_INCLUDE} -I${INCLUDE}
-	${LINKER} -o ${BIN}/gepack ${LIB}/gepack.o ${LIB}/dag_pack.o ${GECODE_LIB}
+	${LINKER} -o ${BIN}/gepack ${LIB}/gepack.o ${LIB}/dag_pack.o ${GECODE_LIB} ${QSOPT}/qsopt.a
 
 binpacking: ${LIB}/dag_pack.o ${SRC}/binpacking.cc
 	${COMPILER} -c ${SRC}/binpacking.cc -o ${LIB}/binpacking.o -I${BOOST_INCLUDE} -I${INCLUDE}
@@ -31,10 +32,12 @@ all: binpacking
 
 # Propagator
 ${LIB}/cost_binpacking.o: ${LIB}/propagate.o ${LIB}/dag_pack.o ${SRC}/cost_binpacking.cc
-	${COMPILER} -c ${SRC}/cost_binpacking.cc -o ${LIB}/cost_binpacking.o -I${GECODE_INCLUDE} -I${BOOST_INCLUDE} -I${INCLUDE}
+	${COMPILER} -c ${SRC}/cost_binpacking.cc -o ${LIB}/cost_binpacking.o \
+		-I${GECODE_INCLUDE} -I${BOOST_INCLUDE} -I${INCLUDE}
 
 ${LIB}/propagate.o: ${LIB}/dag_pack.o ${SRC}/propagate.cc
-	${COMPILER} -c ${SRC}/propagate.cc -o ${LIB}/propagate.o -I${GECODE_INCLUDE} -I${BOOST_INCLUDE} -I${INCLUDE}
+	${COMPILER} -c ${SRC}/propagate.cc -o ${LIB}/propagate.o \
+		-I${GECODE_INCLUDE} -I${BOOST_INCLUDE} -I${INCLUDE} 
 
 ${LIB}/path.o: ${LIB}/dag_pack.o ${SRC}/path.cc
 	${COMPILER} -c ${SRC}/path.cc -o ${LIB}/path.o -I${BOOST_INCLUDE} -I${INCLUDE} -I${GECODE_INCLUDE}
