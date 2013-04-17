@@ -409,6 +409,6 @@ QUIT:
 
    if ( c_status == 1 )
       LB = std::max<cost_t>(lb, LB);
-
+   fprintf(stdout, "pool %ld\n", pool.size());
    return c_status;
 }

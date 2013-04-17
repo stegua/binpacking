@@ -6,7 +6,7 @@ using boost::unordered_map;
 
 namespace Gecode { namespace Int { namespace CostMultiBinPacking {
    PropCost MultiPack::cost(const Space&, const ModEventDelta&) const {
-      return PropCost::cubic(PropCost::HI,x.size());
+      return PropCost::crazy(PropCost::HI,x.size());
    }
 
    Actor* MultiPack::copy(Space& home, bool share) {
@@ -15,15 +15,16 @@ namespace Gecode { namespace Int { namespace CostMultiBinPacking {
 
   ExecStatus 
   MultiPack::propagate(Space& home, const ModEventDelta& med) {
-    
     /// check the ammisibility
     int K = k*m;
-    resources B(K,0); 
+    resources B(K,0);
+    vector<bool> BO(m, false);
     int fixed = 0;
     for ( int i = 0; i < n; ++i ) {
        if ( x[i].assigned() ) {
           fixed++;
           int j = x[i].val();
+          BO[j] = true;
           for ( int l = 0; l < k; ++l ) 
              B[j+l*m] += D[i*k+l];
        }
@@ -44,6 +45,9 @@ namespace Gecode { namespace Int { namespace CostMultiBinPacking {
        if ( i == x.size() )
           return home.ES_SUBSUMED(*this);
     }
+
+    if ( fixed % 2 )
+       return ES_FIX;
 
     /// Create the graph and propagates: x = x
     int N = n*m+2;
@@ -90,6 +94,7 @@ namespace Gecode { namespace Int { namespace CostMultiBinPacking {
     cost_t UB;
     int status = 0;
     for ( int q = 0; q < m; ++q ) {
+       if ( BO[q] )
        for ( int l = 0; l < k; ++l ) {
          LB = 0;
          UB = y[l*m+q].max();
