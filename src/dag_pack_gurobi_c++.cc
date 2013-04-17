@@ -1,7 +1,7 @@
 #include "dag_pack.hh"
 #include "cost_resources_pack.hh"
 #include "path.hh"
-#include "qsopt.h"
+#include "gurobi_c++.h"
 
 #include <cmath>
 
@@ -82,7 +82,7 @@ DAG::topologicalSortBack(void) {
 
 ///--------------------------------------------------------------------------------
 /// Solve the lagrangian subproblem with a subgradient procedure [B&C1989]
-/*int 
+int 
 DAG::subgradient(node_t Source, node_t Target, cost_t& LB, cost_t& UB) {
    /// Return value: true if it has removed at least an arc
    edge_t m0 = arcsLeft();
@@ -160,7 +160,7 @@ DAG::subgradient(node_t Source, node_t Target, cost_t& LB, cost_t& UB) {
    else
       return 0;
 }
-*/
+
 ///--------------------------------------------------------------------------------
 int
 DAG::filter( node_t Source, node_t Target, cost_t& LB, cost_t& UB ) {
@@ -206,14 +206,21 @@ DAG::cuttingPlanes ( node_t Source, node_t Target, cost_t& LB, cost_t& UB ) {
    }
 
    /// Data structure for calling the underlying ANSI/C LP solver
-   QSprob   model;
-   int      error  = 0;
+   GRBEnv   *env   = NULL;
+   GRBVar    u;
+   GRBVar*   x = 0;
+   
    int      status = 0;
    int      *cind  = NULL;
    double   *cval  = NULL;
    double   *xbar  = NULL;
    double   lb     = 0;
    int      iter   = 0;
+
+   try {
+   /// Master Problem
+   env = new GRBEnv();
+   GRBModel model = GRBModel(*env);
 
    cind = (int*)malloc(sizeof(int) * (k+1) );
    if (!cind) goto QUIT;
@@ -222,90 +229,71 @@ DAG::cuttingPlanes ( node_t Source, node_t Target, cost_t& LB, cost_t& UB ) {
    xbar = (double*)malloc(sizeof(double) * (k+1) );
    if (!xbar) goto QUIT;
 
-   /// Master Problem
-   model = QScreate_prob("lag_continuo", QS_MAX);
-   if (model == NULL) {
-      fprintf(stderr, "Error: could not create the problem\n");
-      exit(EXIT_FAILURE);
-   }
+   model.set(GRB_StringAttr_ModelName, "lag_continuo");
+   model.set(GRB_IntAttr_ModelSense, GRB_MAXIMIZE);
 
    /// Add the problem variables (u, v_1, ..., v_k)
    /// Add variable |u|
-   error = QSnew_col(model, 1.0, -QS_MAXDOUBLE, 100*UB, (const char*) NULL);
-   if (error) goto QUIT;
+   u = model.addVar(-GRB_INFINITY, 10*UB, 1.0, GRB_CONTINUOUS);
 
    /// Add variables |v|  
+   x = model.addVars(k, GRB_CONTINUOUS);
+   model.update();
+   fprintf(stdout, "Status %d\n", status);
    for (int i = 0; i < k; ++i) {
-      error = QSnew_col(model, U[i], -QS_MAXDOUBLE, 0.0, (const char*) NULL);
-      if (error) goto QUIT;
+      x[i].set(GRB_DoubleAttr_LB,  -GRB_INFINITY);
+      x[i].set(GRB_DoubleAttr_UB,  0);
+      x[i].set(GRB_DoubleAttr_Obj, U[i]);
    }
 
-   if ( pool.empty() ) {
-      /// Constraint on a path for each constraint
-      for ( int l = 0; l < k ; ++l ) {
-         /// Compute the shortest path using the resource consumption
-         dag_ssp(Source, ArcResView(l), Pf, Df);
-         if ( Pf[Target] == -1 ) {
-            c_status = 2;
-            goto QUIT;
-         }
-         /// Make the path
-         Path* path = new Path(*this, Source, Target, Pf);
-         /// First set the variable |u|
-         cind[0] = 0;
-         cval[0] = 1;
-         /// Then set the variables |v|
-         for ( int i = 0; i < k; ++i ) {
-            cind[i+1] = i+1;
-            cval[i+1] = path->Rc[i];
-         }
-         /// Take the rhs
-         double rhs = path->c;
-         error = QSadd_row(model, k+1, cind, cval, rhs, 'L', (const char*) NULL);
-         if (error) goto QUIT;
-         pool.push_back(path);
+   /// Constraint on a path for each constraint
+   for ( int l = 0; l < k ; ++l ) {
+      /// Compute the shortest path using the resource consumption
+      dag_ssp(Source, ArcResView(l), Pf, Df);
+      if ( Pf[Target] == -1 ) {
+         c_status = 2;
+         goto QUIT;
       }
-   } else {
-      int np = pool.size();
-      for ( int h = 0; h < np; ++h ) {
-         /// First set the variable |u|
-         cind[0] = 0;
-         cval[0] = 1;
-         /// Then set the variables |v|
-         for ( int i = 0; i < k; ++i ) {
-            cind[i+1] = i+1;
-            cval[i+1] = pool[h].Rc[i];
-         }
-         /// Take the rhs
-         double rhs = pool[h].updateCost(*this);
-         error = QSadd_row(model, k+1, cind, cval, rhs, 'L', (const char*) NULL);
-         if (error) goto QUIT;
-      }
-   } 
+      /// Make the path
+      Path path(*this, Source, Target, Pf);
+      
+      GRBLinExpr row = 0;
+      row += u;
+      /// Then set the variables |v|
+      for ( int i = 0; i < k; ++i ) 
+         if (path.Rc[i] > 0)
+            row += path.Rc[i]*x[i]; 
+      /// Take the rhs
+      double rhs = path.c;
+      model.addConstr(row, GRB_LESS_EQUAL, rhs);
+   }
 
-   QSset_param (model, QS_PARAM_DUAL_PRICING, QS_PRICE_DDANTZIG);
    do {
       /* Optimize */
-      error = QSopt_dual(model, &status);
-      if (error) goto QUIT;
+      model.optimize();
+      status = model.get(GRB_IntAttr_Status); 
 
-      if (status == QS_LP_UNBOUNDED) {
+      fprintf(stdout, "Status %d\n", status);
+      std::cout.flush();
+      if (status == GRB_UNBOUNDED) {
          fprintf(stdout, "Unbounded\n");
          goto QUIT;
       }
 
-      if (status == QS_LP_INFEASIBLE) {
+      if (status == GRB_INFEASIBLE) {
          fprintf(stdout, "Infeasible\n");
          goto QUIT;
       }
 
-      QSget_objval(model, &lb);
-      //fprintf(stdout, "LP %f - status %d\n", lb, status);
+      lb = model.get(GRB_DoubleAttr_ObjVal);
+      
       /// Take the current LP decision vector
-      error = QSget_x_array(model, xbar);  /// xbar[0] <-> u; xbar[i+1] <-> v_i
-      if (error) goto QUIT;
 
-      double u_bar = xbar[0];
+      //error = GRBgetdblattrarray(model, "X", 0, k+1, xbar);
+
+      double u_bar = u.get(GRB_DoubleAttr_X);
+      for ( int i = 0; i < k; ++i )
+         xbar[i+1] = x[i].get(GRB_DoubleAttr_X);
 
       /// Problema di separazione: Cammino Minimo su DAG
       /// Set the edge scaled weight as: c_e = c_e - v_1.r_e - ... - v_k.r_e
@@ -320,30 +308,32 @@ DAG::cuttingPlanes ( node_t Source, node_t Target, cost_t& LB, cost_t& UB ) {
 
       dag_ssp(Source, W, Pf, Df);
       if ( Pf[Target] == -1 ) 
-         goto QUIT;
+         exit(EXIT_FAILURE); 
 
-      Path* path = new Path(*this, Source, Target, Pf);
+      Path path(*this, Source, Target, Pf);
       
-      if ( fabs(path->d - u_bar) < EPS || path->d > u_bar + EPS ) {
-         QSget_objval(model, &lb);
+      if ( fabs(path.d - u_bar) < EPS || path.d > u_bar + EPS ) 
          goto FILTER;
-      }
 
-      /// First set the variable |u|
-      cind[0] = 0;
-      cval[0] = 1;
+      GRBLinExpr row = u;
       /// Then set the variables |v|
-      for ( int i = 0; i < k; ++i ) {
-         cind[i+1] = i+1;
-         cval[i+1] = path->Rc[i];
-      }
+      for ( int i = 0; i < k; ++i ) 
+         if (path.Rc[i] > 0)
+            row += path.Rc[i]*x[i]; 
       /// Take the rhs
-      double rhs = path->c;
-      error = QSadd_row(model, k+1, cind, cval, rhs, 'L', (const char*) NULL);
-      if (error) goto QUIT;
-      pool.push_back(path);
+      double rhs = path.c;
+      model.addConstr(row, GRB_LESS_EQUAL, rhs);
    } while ( iter++ < 50 );
-
+  }
+  catch (GRBException e)
+  {
+     std::cout << "Error code = " << e.getErrorCode() << std::endl;
+     std::cout << e.getMessage() << std::endl;
+  }
+  catch (...)
+  {
+     std::cout << "Exception during optimization" << std::endl;
+  }
 FILTER:
    if ( iter < 50 ) {
       /// Problema di separazione: Cammino Minimo su DAG
@@ -405,7 +395,8 @@ QUIT:
    free(cval);
    free(xbar);
 
-   QSfree_prob(model);
+   delete[] x;
+   delete env;
 
    if ( c_status == 1 )
       LB = std::max<cost_t>(lb, LB);

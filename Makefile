@@ -4,7 +4,7 @@
 # Change this file to use a different set of local variable (machine dependant)
 include config.mac
 
-gecode_multibin: ${LIB}/propagate_multi.o ${LIB}/path.o ${LIB}/dag_pack.o ${LIB}/cost_multibin.o ${SRC}/gecode_multibin.cc
+gecode_multibin: ${LIB}/propagate_multi.o ${LIB}/dag_pack.o ${LIB}/path.o ${LIB}/cost_multibin.o ${SRC}/gecode_multibin.cc
 	${COMPILER} -c ${SRC}/gecode_multibin.cc -o ${LIB}/gecode_multibin.o -I${GECODE_INCLUDE} -I${BOOST_INCLUDE} -I${INCLUDE}
 	${LINKER} -o ${BIN}/gecode_multibin ${LIB}/gecode_multibin.o \
 		${LIB}/path.o ${LIB}/dag_pack.o ${LIB}/propagate_multi.o ${LIB}/cost_multibin.o ${GECODE_LIB} ${QSOPT}/qsopt.a

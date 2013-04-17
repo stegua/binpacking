@@ -3,13 +3,13 @@
 
 #include "arc.hh"
 #include "my_types.hh"
-#include "dag_pack.hh"
-
-#include <list>
-using std::list;
-
+//#include "dag_pack.hh"
+class DAG;
 #include <vector>
 using std::vector;
+
+#include <boost/ptr_container/ptr_vector.hpp>
+using boost::ptr_vector;
 
 class Path {
 public:
@@ -20,13 +20,9 @@ public:
    /// Resource consumption
    resources Rc;
    /// List of nodes in the path
-   list< node_t >  path;
-   /// Default constructor during filtering
-//   Path ( node_t Source, node_t Target, cost_t _c, const Arc& a, const vector< node_t >& Pf, const vector< node_t >& Pb );
+   vector< edge_t >  path;
    /// Path costructore standard
    Path ( const DAG& G, node_t Source, node_t Target, const vector< edge_t >& Pf );
-   /// Path constructor for enumeration
-  // Path ( node_t Target, cost_t _c, const stack<node_t>& theStack);
    /// Empty constructor
    explicit Path ( void ) : c(0), d(0) {}
    /// Costruttore di copia
@@ -39,9 +35,11 @@ public:
       new( this ) Path( other );
       return *this;
    }
+   /// Update path cost with new weights
+   cost_t updateCost( const DAG& G );
 };
 
-//typedef ptr_vector<Path>  Paths;
+typedef ptr_vector<Path>  Paths;
 
 #endif  /// close the __RCSP_PATH_
 

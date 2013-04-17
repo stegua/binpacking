@@ -1,8 +1,8 @@
 #include "cost_multibin.hh"
 #include <stdio.h>
 #include <dag_pack.hh>
-#include <map>
-using std::map;
+#include <boost/unordered_map.hpp>
+using boost::unordered_map;
 
 namespace Gecode { namespace Int { namespace CostMultiBinPacking {
    PropCost MultiPack::cost(const Space&, const ModEventDelta&) const {
@@ -15,31 +15,14 @@ namespace Gecode { namespace Int { namespace CostMultiBinPacking {
 
   ExecStatus 
   MultiPack::propagate(Space& home, const ModEventDelta& med) {
-    /// Check if SUBSUMED
-    {
-       int i = 0;
-       while ( i<n && x[i].assigned()) { i++; };
-       if ( i == x.size() )
-          return home.ES_SUBSUMED(*this);
-    }
-
-    /// Create the graph and propagates: x = x
-    int N = n*m+2;
-    int M = (n-1)*(m*m)+2*m;
-    int K = k*m;
-    int S = N-2;
-    int T = N-1;
-
-    resources U(K,0);
-    for ( int l = 0; l < K; ++l )
-       U[l] = y[l].max();
-
-    DAG G (N, M, U);
     
     /// check the ammisibility
+    int K = k*m;
     resources B(K,0); 
+    int fixed = 0;
     for ( int i = 0; i < n; ++i ) {
        if ( x[i].assigned() ) {
+          fixed++;
           int j = x[i].val();
           for ( int l = 0; l < k; ++l ) 
              B[j+l*m] += D[i*k+l];
@@ -53,10 +36,30 @@ namespace Gecode { namespace Int { namespace CostMultiBinPacking {
        else 
           GECODE_ME_CHECK(y[l].gq(home, B[l]));
     }
+
+    /// Check if SUBSUMED
+    {
+       int i = 0;
+       while ( i<n && x[i].assigned()) { i++; };
+       if ( i == x.size() )
+          return home.ES_SUBSUMED(*this);
+    }
+
+    /// Create the graph and propagates: x = x
+    int N = n*m+2;
+    int M = (n-1)*(m*m)+2*m;
+    int S = N-2;
+    int T = N-1;
+
+    resources U(K,0);
+    for ( int l = 0; l < K; ++l )
+       U[l] = y[l].max();
+
+    DAG G (N, M, U);
     
     /// Build the Directed Acyclic Graph
     typedef std::pair<int, int> NodePair;
-    map< NodePair, edge_t > As;
+    unordered_map< NodePair, edge_t > As;
     for ( int i = 0; i < n-1; ++i ) {
        for ( IntVarValues j(x[i+1]); j(); ++j ) {
           resources R(K,0);
@@ -117,18 +120,18 @@ namespace Gecode { namespace Int { namespace CostMultiBinPacking {
          }
 
          /// Aumenta il lower bound della variable di load
-         if ( status == 0 ) {
+         if ( status == 3 ) {
             int LB0 = int(ceil(LB-0.5));
-            fprintf(stdout,"#%d ", LB0);
+            //fprintf(stdout,"#%d ", LB0);
             if ( y[l*m+q].max() < LB0 ) {
-               fprintf(stdout,"\n");
+               //fprintf(stdout,"\n");
                return ES_FAILED;
             }
             if ( y[l*m+q].min() < LB0 ) 
                GECODE_ME_CHECK(y[l*m+q].gq(home,LB0));
          }
        }
-       fprintf(stdout,"\n");
+       //fprintf(stdout,"\n");
     }
     
     if ( ES_FAILED == G.filterArcs(n,m,k,x,home) )

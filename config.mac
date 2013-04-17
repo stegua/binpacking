@@ -1,8 +1,8 @@
 # Stefano Gualandi, stefano.gualandi@gmail.com
 # last update, October, 2012
 
-OPTFLAG = -O2 -DNDEBUG -Wall
-LDFLAGS = -O2 -DNDEBUG -lm -lpthread
+OPTFLAG = -O2 -DNDEBUG -Wall -m64 -g
+LDFLAGS = -O2 -DNDEBUG -lm -lpthread -g
 
 COMPILER    = clang++ ${OPTFLAG}
 LINKER      = clang++ ${LDFLAGS}
@@ -26,3 +26,7 @@ GECODE_LIB      = -L/Users/gualandi/LIBS/gecode/lib \
 
 # Configure the path for QSopt
 QSOPT = /Users/gualandi/LIBS/qsopt
+
+# Use Gurobi as LP solver
+GUROBI_INC = /Library/gurobi550/mac64/include/
+GUROBI_LIB = -L/Library/gurobi550/mac64/lib/ -lgurobi55 -lgurobi_c++

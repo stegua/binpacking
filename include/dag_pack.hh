@@ -32,6 +32,7 @@ using namespace Gecode::Int::CostMultiBinPacking;
 /// Constants
 const cost_t EPS = 1e-06;
 
+#include "path.hh"
 
 ///--------------------------------------------------------------------------------
 /// Class of graph to compute RCSP with superadditive cost
@@ -53,22 +54,25 @@ class DAG {
       const dist_t Inf;
 
       cost_t UBoff;
-      vector<cost_t> alpha;
-      vector<cost_t> H;
-      cost_t H0;
-      cost_t zb;
-      cost_t f;
+//      vector<cost_t> alpha;
+//      vector<cost_t> H;
+//      cost_t H0;
+//      cost_t zb;
+//      cost_t f;
 
    public:
       vector<Node>  Nc; /// Nodes container
       resources     U;  /// Upper limits for the *k* resources
       NodeList      N;  /// List view (Intrusive list)
-      
+     
+      Paths         pool;  /// Set of paths for separation routines
+
       /// Standard constructor
       DAG ( node_t _n, edge_t _m, const resources& _U ) 
          : n(_n), m(_m), k(_U.size()), Pf(n), Pb(n), Df(n), Db(n),
          Inf(std::numeric_limits<dist_t>::max()),
-         alpha(k,0.0), H(k,0.0), Nc(n), U(_U)
+         //alpha(k,0.0), H(k,0.0), 
+         Nc(n), U(_U)
    {
       assert( n < std::numeric_limits<node_t>::max()  &&
             m < std::numeric_limits<edge_t>::max() );
@@ -81,9 +85,9 @@ class DAG {
          N.push_back( Nc[i] );
       }
       /// Subgradient
-      H0 = 0.0;
-      zb = 0.0;
-      f  = 1.3;
+      //H0 = 0.0;
+      //zb = 0.0;
+      //f  = 1.3;
    }
 
       /// Basic getters
