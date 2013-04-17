@@ -29,6 +29,7 @@ using std::vector;
 using namespace Gecode;
 using namespace Gecode::Int;
 
+#include "cost_multibin.hh"
 
 /// Main Script
 class MultiBinPacking : public Script {
@@ -42,18 +43,26 @@ class MultiBinPacking : public Script {
       MultiBinPacking( int n, int m, int k, const vector<int>& b, const vector< vector<int> >& A )
          :  x ( *this, n,   0, m-1         ), 
             y ( *this, m*k, 0, Limits::max ) 
-      {  
+      { 
          Matrix<IntVarArray> L(y, m, k);
          /// Capacity constraint for each dimension
          for ( int l = 0; l < k; ++l )
             rel ( *this, L.row(l), IRT_LQ, b[l] );
-         /// Post binpacking constraints
-         for ( int l = 0; l < k; ++l ) {
-            IntArgs s(n);
-            for ( int i = 0; i < n; ++i )
-               s[i] = A[i][l];
-            binpacking ( *this, L.row(l), x, s );
-         }
+         //if ( false ) {
+            /// Post binpacking constraints
+            for ( int l = 0; l < k; ++l ) {
+               IntArgs s(n);
+               for ( int i = 0; i < n; ++i )
+                  s[i] = A[i][l];
+               binpacking ( *this, L.row(l), x, s );
+            }
+         //} else {
+            IntSharedArray C(n*k);
+            for ( int i = 0; i < n; ++i ) 
+               for ( int l = 0; l < k; ++l ) 
+                  C[i*k+l] = A[i][l];
+            cost_multibin(*this, n, m, k, y, x, C);
+         //}
          if ( status() == SS_FAILED )
             printf("FAILED ROOT\n");
          for ( int j = 0; j < m; j++ ) {
@@ -172,8 +181,8 @@ int main(int argc, char **argv)
    }
    
    vector<int> b(m,0);
-   for ( int j = 0; j < m; ++j ) 
-      infile >> b[j];
+   for ( int l = 0; l < k; ++l ) 
+      infile >> b[l];
    
    onlyCP(n,m,k,b,A);
 

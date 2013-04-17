@@ -16,7 +16,7 @@ namespace Gecode { namespace Int { namespace CostMultiBinPacking {
          /// Cost of assign processi i to machine j
          IntSharedArray  D;
          /// Constructor for posting
-         MultiPack(Home home, ViewArray<IntView>& y, ViewArray<IntView>& x, const IntSharedArray& D);
+         MultiPack(Home home, int n, int m, int k, ViewArray<IntView>& y, ViewArray<IntView>& x, const IntSharedArray& D);
          /// Constructor for cloning \a p
          MultiPack(Space& home, bool share, MultiPack& p);
       public:
@@ -42,7 +42,7 @@ namespace Gecode { namespace Int { namespace CostMultiBinPacking {
 }}
 
 GECODE_INT_EXPORT void
-cost_multibinpacking(Home home, 
+cost_multibin(Home home, 
       int n, int m, int k,
       const IntVarArgs&      y, 
       const IntVarArgs&      x, 

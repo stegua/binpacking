@@ -26,11 +26,11 @@ using std::numeric_limits;
 using namespace Gecode;
 using namespace Gecode::Int;
 
-#include "cost_binpacking.hh"
-using namespace Gecode::Int::CostBinPacking;
+#include "cost_multibin.hh"
+using namespace Gecode::Int::CostMultiBinPacking;
 
 /// Constants
-const cost_t EPS = 1e-09;
+const cost_t EPS = 1e-06;
 
 
 ///--------------------------------------------------------------------------------
@@ -316,7 +316,7 @@ class DAG {
                ++it.first;  /// First increment the pointer, for safe in-place removals
                node_t w = a->w; /// Arc length (it depends on the LengthView)
                dist_t Wuv = static_cast<dist_t>(W(*a));
-               fprintf(stdout, "(%d,%d) %.1f %.1f | %.1f %.1f %.1f %.1f\n",v,w,a->c,a->d,Df[v],Wuv,Db[w],UB_off); 
+               //fprintf(stdout, "(%d,%d) %.1f %.1f | %.1f %.1f %.1f %.1f\n",v,w,a->c,a->d,Df[v],Wuv,Db[w],UB_off); 
                if ( (v != Source && Pf[v] == -1) || (w != Target && Pb[w] == -1) || 
                      computeCost(Df[v]+Wuv+Db[w]+UB_off+EPS) > UB ) {
                   removeArc(a);
@@ -337,7 +337,7 @@ class DAG {
       void printArcs     ( int n, int m ); 
 
       /// Make it as a propagator   
-      ExecStatus  filterArcs  ( int n, int m, ViewArray<Item>& x, Space& home);
+      ExecStatus  filterArcs  ( int n, int m, int k, ViewArray<IntView>& x, Space& home);
 }; /// End intrusive graph class
 
 #endif /// __MY_DAG_PACK

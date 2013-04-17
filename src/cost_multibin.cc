@@ -1,7 +1,7 @@
-#include <cost_binpacking.hh>
+#include <cost_multibin.hh>
 
 namespace Gecode {
-   void cost_binpacking(Home home, 
+   void cost_multibin(Home home, 
          int n, int m, int k,
          const IntVarArgs& y, 
          const IntVarArgs& x, 
@@ -23,7 +23,7 @@ namespace Gecode {
       for (int i=xv.size(); i--; )
          xv[i] = IntView(x[i]);
 
-      GECODE_ES_FAIL(Int::CostBinPacking::MultiPack::post(home,n,m,k,yv,xv,D));
+      GECODE_ES_FAIL(Int::CostMultiBinPacking::MultiPack::post(home,n,m,k,yv,xv,D));
    }
 }
 

@@ -99,7 +99,7 @@ DAG::subgradient(node_t Source, node_t Target, cost_t& LB, cost_t& UB) {
       //alpha[l] = 0.0;
    
    /// Subgradient loop
-   for ( int iter = 0; iter < 530; ++iter ) {
+   for ( int iter = 0; iter < 130; ++iter ) {
       //for ( int l = 0; l < k; ++l ) 
          //fprintf(stdout," %.5f",alpha[l]);
       //fprintf(stdout," LAGG\n");
@@ -124,7 +124,7 @@ DAG::subgradient(node_t Source, node_t Target, cost_t& LB, cost_t& UB) {
 
       if ( Pf[Target] != -1 ) 
          LB = std::max<cost_t>(LB,Df[Target]+UBoff);
-      if ( fabs(LB-ceil(LB)) > 1e-05 )
+      if ( fabs(LB-ceil(LB)) > EPS )
          LB = int(ceil(LB));
       else 
          LB = int(round(LB));
@@ -170,20 +170,20 @@ DAG::filter( node_t Source, node_t Target, cost_t& LB, cost_t& UB ) {
 }
 
 /// Filter the arcs
-ExecStatus DAG::filterArcs( int n, int m, ViewArray<Item>& x, Space& home) {
+ExecStatus DAG::filterArcs( int n, int m, int k, ViewArray<IntView>& x, Space& home) {
    for ( int i = 0; i < n; ++i ) {
       int dom_size = 0;
       int bin = -1;
-      for ( IntVarValues j(x[i].bin()); j(); ++j ) {
+      for ( IntVarValues j(x[i]); j(); ++j ) {
          if ( Nc[i*m+j.val()].in_degree() > 0 ) {
             dom_size++;
             bin = j.val();
          }
       }
-      if ( dom_size == 0 || (x[i].bin().assigned() && x[i].bin().val() != bin ))
+      if ( dom_size == 0 || (x[i].assigned() && x[i].val() != bin ))
          return ES_FAILED;
       if ( dom_size == 1 ) 
-         GECODE_ME_CHECK(x[i].bin().eq(home, bin));
+         GECODE_ME_CHECK(x[i].eq(home, bin));
    }
 
    return ES_NOFIX;
@@ -231,7 +231,7 @@ DAG::cuttingPlanes ( node_t Source, node_t Target, cost_t& LB, cost_t& UB ) {
 
    /// Add the problem variables (u, v_1, ..., v_k)
    /// Add variable |u|
-   error = QSnew_col(model, 1.0, -QS_MAXDOUBLE, 10*UB, (const char*) NULL);
+   error = QSnew_col(model, 1.0, -QS_MAXDOUBLE, 100*UB, (const char*) NULL);
    if (error) goto QUIT;
 
    /// Add variables |v|  
@@ -284,7 +284,7 @@ DAG::cuttingPlanes ( node_t Source, node_t Target, cost_t& LB, cost_t& UB ) {
       }
 
       QSget_objval(model, &lb);
-      fprintf(stdout, "LP %f - status %d\n", lb, status);
+      //fprintf(stdout, "LP %f - status %d\n", lb, status);
       /// Take the current LP decision vector
       error = QSget_x_array(model, xbar);  /// xbar[0] <-> u; xbar[i+1] <-> v_i
       if (error) goto QUIT;
@@ -347,14 +347,14 @@ FILTER:
          UBoff += xbar[l+1]*U[l];
       /// Start double shortest path computation
       dag_ssp_all(Source, W, Rf, Pf, Df );
-      fprintf(stdout,"LLBB %f \n", UBoff+Df[Target]);
+      //fprintf(stdout,"LLBB %f \n", UBoff+Df[Target]);
       /// If destination is reachable, update the lower bound
       if ( Pf[Target] == -1 ) {
-         fprintf(stdout, "Disconnected\n");
+         //fprintf(stdout, "Disconnected\n");
          c_status = 2;
          goto QUIT;
       }
-      fprintf(stdout,"\n");
+      //fprintf(stdout,"\n");
 
       LB = std::max<cost_t>(LB,Df[Target]+UBoff);
 
@@ -378,8 +378,11 @@ FILTER:
          }
       }
    }
-   else
+   else {
+      fprintf(stdout,"WARNING\n");
       c_status = 1;
+      //exit(0);
+   }
    
 QUIT:
    free(cind);
@@ -388,7 +391,8 @@ QUIT:
 
    QSfree_prob(model);
 
-   LB = std::max<cost_t>(lb, LB);
+   if ( c_status == 1 )
+      LB = std::max<cost_t>(lb, LB);
 
    return c_status;
 }

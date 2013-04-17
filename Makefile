@@ -4,15 +4,16 @@
 # Change this file to use a different set of local variable (machine dependant)
 include config.mac
 
+gecode_multibin: ${LIB}/propagate_multi.o ${LIB}/path.o ${LIB}/dag_pack.o ${LIB}/cost_multibin.o ${SRC}/gecode_multibin.cc
+	${COMPILER} -c ${SRC}/gecode_multibin.cc -o ${LIB}/gecode_multibin.o -I${GECODE_INCLUDE} -I${BOOST_INCLUDE} -I${INCLUDE}
+	${LINKER} -o ${BIN}/gecode_multibin ${LIB}/gecode_multibin.o \
+		${LIB}/path.o ${LIB}/dag_pack.o ${LIB}/propagate_multi.o ${LIB}/cost_multibin.o ${GECODE_LIB} ${QSOPT}/qsopt.a
+
 multibinpacking: ${LIB}/path.o ${LIB}/dag_pack.o ${SRC}/multibinpacking.cc
 	${COMPILER} -c ${SRC}/multibinpacking.cc -o ${LIB}/multibinpacking.o \
 		-I${QSOPT} -I${BOOST_INCLUDE} -I${INCLUDE} -I${GECODE_INCLUDE}
 	${LINKER} -o ${BIN}/multibinpacking ${LIB}/multibinpacking.o ${LIB}/dag_pack.o ${LIB}/path.o \
 		${GECODE_LIB} ${QSOPT}/qsopt.a
-
-gecode_multibin: ${SRC}/gecode_multibin.cc
-	${COMPILER} -c ${SRC}/gecode_multibin.cc -o ${LIB}/gecode_multibin.o -I${GECODE_INCLUDE} -I${BOOST_INCLUDE} -I${INCLUDE}
-	${LINKER} -o ${BIN}/gecode_multibin ${LIB}/gecode_multibin.o ${GECODE_LIB}
 
 gegap: ${LIB}/path.o ${LIB}/dag_pack.o ${LIB}/cost_binpacking.o ${SRC}/gegap.cc
 	${COMPILER} -c ${SRC}/gegap.cc -o ${LIB}/gegap.o -I${GECODE_INCLUDE} -I${BOOST_INCLUDE} -I${INCLUDE}
@@ -37,6 +38,14 @@ ${LIB}/cost_binpacking.o: ${LIB}/propagate.o ${LIB}/dag_pack.o ${SRC}/cost_binpa
 
 ${LIB}/propagate.o: ${LIB}/dag_pack.o ${SRC}/propagate.cc
 	${COMPILER} -c ${SRC}/propagate.cc -o ${LIB}/propagate.o \
+		-I${GECODE_INCLUDE} -I${BOOST_INCLUDE} -I${INCLUDE} 
+
+${LIB}/cost_multibin.o: ${LIB}/propagate_multi.o ${LIB}/dag_pack.o ${SRC}/cost_multibin.cc
+	${COMPILER} -c ${SRC}/cost_multibin.cc -o ${LIB}/cost_multibin.o \
+		-I${GECODE_INCLUDE} -I${BOOST_INCLUDE} -I${INCLUDE}
+
+${LIB}/propagate_multi.o: ${LIB}/dag_pack.o ${SRC}/propagate_multi.cc
+	${COMPILER} -c ${SRC}/propagate_multi.cc -o ${LIB}/propagate_multi.o \
 		-I${GECODE_INCLUDE} -I${BOOST_INCLUDE} -I${INCLUDE} 
 
 ${LIB}/path.o: ${LIB}/dag_pack.o ${SRC}/path.cc

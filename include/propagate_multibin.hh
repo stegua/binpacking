@@ -1,13 +1,13 @@
 namespace Gecode { namespace Int { namespace CostMultiBinPacking {
    forceinline
-      MultiPack::MultiPack(Home home, int n, int m, int k,
+      MultiPack::MultiPack(Home home, int n0, int m0, int k0,
             ViewArray<IntView>& y0, ViewArray<IntView>& x0, const IntSharedArray& D0 )
-      : Propagator(home), y(y0), x(x0), D(D0), n(p.n), m(p.m), k(p.k) {
+      : Propagator(home), n(n0), m(m0), k(k0) , y(y0), x(x0), D(D0){
          x.subscribe(home,*this,PC_INT_DOM);
       }
 
    forceinline
-      MultiPack::MultiPack(Space& home, bool shared, Pack& p) 
+      MultiPack::MultiPack(Space& home, bool shared, MultiPack& p) 
       : Propagator(home,shared, p), n(p.n), m(p.m), k(p.k) {
          y.update(home, shared, p.y);
          x.update(home, shared, p.x);
