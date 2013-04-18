@@ -295,7 +295,7 @@ class DAG {
                node_t w = a->w; /// Arc length (it depends on the LengthView)
                dist_t Wuv = static_cast<dist_t>(W(*a));
                if ( (v != Source && Pf[v] == -1) || (w != Target && Pb[w] == -1) || 
-                     Df[v] + Wuv + Db[w] > U[l] ) {
+                     Df[v] + Wuv + Db[w] - EPS > U[l] ) {
                   removeArc(a);
                   removed = true;
                }
@@ -322,7 +322,7 @@ class DAG {
                dist_t Wuv = static_cast<dist_t>(W(*a));
                //fprintf(stdout, "(%d,%d) %.1f %.1f | %.1f %.1f %.1f %.1f\n",v,w,a->c,a->d,Df[v],Wuv,Db[w],UB_off); 
                if ( (v != Source && Pf[v] == -1) || (w != Target && Pb[w] == -1) || 
-                     computeCost(Df[v]+Wuv+Db[w]+UB_off+EPS) > UB ) {
+                     computeCost(Df[v]+Wuv+Db[w]+UB_off-EPS) > UB ) {
                   removeArc(a);
                   removed = true;
                }

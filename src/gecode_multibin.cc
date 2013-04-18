@@ -25,7 +25,6 @@ using std::vector;
 
 
 #include <gecode/driver.hh>
-#include <gecode/minimodel.hh>
 using namespace Gecode;
 using namespace Gecode::Int;
 
@@ -44,34 +43,41 @@ class MultiBinPacking : public Script {
          :  x ( *this, n,   0, m-1         ), 
             y ( *this, m*k, 0, Limits::max ) 
       { 
-         Matrix<IntVarArray> L(y, m, k);
          /// Capacity constraint for each dimension
-         for ( int l = 0; l < k; ++l )
-            rel ( *this, L.row(l), IRT_LQ, b[l] );
-         //if ( false ) {
-            /// Post binpacking constraints
-            for ( int l = 0; l < k; ++l ) {
-               IntArgs s(n);
-               for ( int i = 0; i < n; ++i )
-                  s[i] = A[i][l];
-               binpacking ( *this, L.row(l), x, s );
-            }
-         //} else {
-            IntSharedArray C(n*k);
-            for ( int i = 0; i < n; ++i ) 
-               for ( int l = 0; l < k; ++l ) 
-                  C[i*k+l] = A[i][l];
-            cost_multibin(*this, n, m, k, y, x, C);
-         //}
+         for ( int j = 0; j < m; ++j )
+            for ( int l = 0; l < k; ++l )
+               rel ( *this, y[j*k+l], IRT_LQ, b[l] );
+         /// Post binpacking constraints
+         for ( int l = 0; l < k; ++l ) {
+            IntArgs s(n);
+            for ( int i = 0; i < n; ++i )
+               s[i] = A[i][l];
+            IntVarArgs t(m);
+            for ( int j = 0; j < m; ++j )
+               t[j] = y[j*k+l];
+            binpacking ( *this, t, x, s );
+         }
+         IntSharedArray C(n*k);
+         for ( int i = 0; i < n; ++i ) 
+            for ( int l = 0; l < k; ++l ) 
+               C[i*k+l] = A[i][l];
+         cost_multibin(*this, n, m, k, y, x, C);
+
          if ( status() == SS_FAILED )
             printf("FAILED ROOT\n");
          for ( int j = 0; j < m; j++ ) {
             for ( int l = 0; l < k; ++l )
-               printf("%d#[%d,%d]  ", b[l], L(j,l).min(), L(j,l).max());
+               printf("%d#[%d,%d]  ", b[l], y[j*k+l].min(), y[j*k+l].max());
             printf("\n");
          }
+         {
+            //   int sol[18] = {0,0,1,1,2,0,2,1,3,2,3,3,4,5,4,4,5,5};
+            //int sol[18] = {0,0,1,1,2,2,3,1,0,2,4,3,4,5,4,5,5,3};
+            //for ( int i = 0; i < n; ++i )
+            // rel ( *this, x[i], IRT_EQ, sol[i] );
+         }
          /// Branching strategy 
-         branch(*this, x, INT_VAR_SIZE_DEGREE_MAX, INT_VAL_MIN);
+         branch(*this, x, INT_VAR_NONE, INT_VAL_MIN);
       }
       /// Constructor for cloning \a s
       MultiBinPacking( bool share, MultiBinPacking& s) : Script(share,s) {
@@ -81,6 +87,11 @@ class MultiBinPacking : public Script {
       /// Perform copying during cloning
       virtual Space* copy(bool share) {
          return new MultiBinPacking(share, *this);
+      }
+      void printSol() {
+         int n = x.size();
+         for ( int i = 0; i < n; ++i )
+            fprintf(stdout, "%d,", x[i].val());
       }
 };
 
@@ -146,6 +157,8 @@ void onlyCP ( int n, int m, int k, const vector<int>& b, const vector< vector<in
  
   if ( ex == NULL )
      printf("NO SOLUTION\t");
+  else
+     ex->printSol();
   delete ex;
 
   fprintf(stdout,"Nodes %ld Memory %ld Time %.3f\n", 
@@ -180,7 +193,7 @@ int main(int argc, char **argv)
       A.push_back( row );
    }
    
-   vector<int> b(m,0);
+   vector<int> b(k,0);
    for ( int l = 0; l < k; ++l ) 
       infile >> b[l];
    

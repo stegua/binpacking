@@ -26,7 +26,7 @@ namespace Gecode { namespace Int { namespace CostMultiBinPacking {
           int j = x[i].val();
           BO[j] = true;
           for ( int l = 0; l < k; ++l ) 
-             B[j+l*m] += D[i*k+l];
+             B[j*k+l] += D[i*k+l];
        }
     }
     for ( int l = 0; l < K; ++l ) {
@@ -46,8 +46,8 @@ namespace Gecode { namespace Int { namespace CostMultiBinPacking {
           return home.ES_SUBSUMED(*this);
     }
 
-    if ( fixed % 2 )
-       return ES_FIX;
+    //if ( fixed < 2 )
+      // return ES_FIX;
 
     /// Create the graph and propagates: x = x
     int N = n*m+2;
@@ -68,7 +68,7 @@ namespace Gecode { namespace Int { namespace CostMultiBinPacking {
        for ( IntVarValues j(x[i+1]); j(); ++j ) {
           resources R(K,0);
           for ( int l = 0; l < k; ++l )
-             R[j.val()+l*m] = D[(i+1)*k+l];//A[i+1][l];
+             R[j.val()*k+l] = D[(i+1)*k+l];//A[i+1][l];
           for ( IntVarValues h(x[i]); h(); ++h ) {
              edge_t arc_id = G.addArc( i*m+h.val(), (i+1)*m+j.val(), 0, R );
              As[make_pair(i*m+h.val(), ((i+1)*m+j.val()))] = arc_id;
@@ -79,7 +79,7 @@ namespace Gecode { namespace Int { namespace CostMultiBinPacking {
     for ( IntVarValues j(x[0]); j(); ++j ) {
        resources R(K,0);
        for ( int l = 0; l < k; ++l )
-          R[j.val()+l*m] = D[l];//x[0].size();
+          R[j.val()*k+l] = D[l];//x[0].size();
        edge_t arc_id = G.addArc( S, j.val(), 0, R );
        As[make_pair(S, j.val())] = arc_id;
     }
@@ -93,56 +93,70 @@ namespace Gecode { namespace Int { namespace CostMultiBinPacking {
     cost_t LB;
     cost_t UB;
     int status = 0;
+    vector<int> Bound(K,0);
     for ( int q = 0; q < m; ++q ) {
        if ( BO[q] )
-       for ( int l = 0; l < k; ++l ) {
-         LB = 0;
-         UB = y[l*m+q].max();
-         //fprintf(stdout,"%.1f ", UB);
-         /// Archi da item a item
-         for ( int i = 0; i < n-1; ++i ) {
-            for ( IntVarValues j(x[i]); j(); ++j ) {
-               for ( IntVarValues h(x[i+1]); h(); ++h ) {
-                  if ( j.val() == q )
-                     G.setArcCost(As[make_pair(i*m+h.val(), ((i+1)*m+j.val()))], D[(i+1)*k+l]);
-                  else
-                     G.setArcCost(As[make_pair(i*m+h.val(), ((i+1)*m+j.val()))], 0);
-               }
-            }
-         }
-         /// Archi dalla sorgente 
-         for ( IntVarValues j(x[0]); j(); ++j ) {
-            if ( j.val() == q )
-               G.setArcCost( As[make_pair(S, j.val())], D[l]);
-            else
-               G.setArcCost( As[make_pair(S, j.val())], 0);
-         }
+          for ( int l = 0; l < k; ++l ) {
+             if ( !y[q*k+l].assigned() ) {
+                LB = 0;
+                UB = y[q*k+l].max();
+                //fprintf(stdout,"%.1f ", UB);
+                /// Archi da item a item
+                for ( int i = 0; i < n-1; ++i ) {
+                   for ( IntVarValues j(x[i+1]); j(); ++j ) {
+                      for ( IntVarValues h(x[i]); h(); ++h ) {
+                         if ( j.val() == q )
+                            G.setArcCost(As[make_pair(i*m+h.val(), ((i+1)*m+j.val()))], D[(i+1)*k+l]);
+                         else
+                            G.setArcCost(As[make_pair(i*m+h.val(), ((i+1)*m+j.val()))], 0);
+                      }
+                   }
+                }
+                /// Archi dalla sorgente 
+                for ( IntVarValues j(x[0]); j(); ++j ) {
+                   if ( j.val() == q )
+                      G.setArcCost( As[make_pair(S, j.val())], D[l]);
+                   else
+                      G.setArcCost( As[make_pair(S, j.val())], 0);
+                }
 
-         status = G.filter(S,T,LB,UB);
+                status = G.filter(S,T,LB,UB);
 
-         if ( status == 2 ) {
-            return ES_FAILED;
-         }
+                if ( status == 2 ) {
+                   fprintf(stdout,"fail-reach\n");
+                   return ES_FAILED;
+                }
 
-         /// Aumenta il lower bound della variable di load
-         if ( status == 3 ) {
-            int LB0 = int(ceil(LB-0.5));
-            //fprintf(stdout,"#%d ", LB0);
-            if ( y[l*m+q].max() < LB0 ) {
-               //fprintf(stdout,"\n");
-               return ES_FAILED;
-            }
-            if ( y[l*m+q].min() < LB0 ) 
-               GECODE_ME_CHECK(y[l*m+q].gq(home,LB0));
-         }
-       }
-       //fprintf(stdout,"\n");
+                /// Aumenta il lower bound della variable di load
+                if ( status == 0 ) {
+                   int LB0 = int(LB)-1;
+                   if ( fabs(LB-ceil(LB)) > EPS )
+                      LB0 = int(ceil(LB))-1;
+                   else 
+                      LB0 = int(round(LB))-1;
+                   if ( y[q*k+l].max() < LB0 ) {
+                      //fprintf(stdout,"fail-bound\n");
+                      return ES_FAILED;
+                   }
+                   if ( y[q*k+l].min() < LB0 ) {
+                      //fprintf(stdout,"prune #%.1f %d %d\n", LB, LB0, y[q*k+l].min());
+                      Bound[q*k+l] = LB0;
+                      //GECODE_ME_CHECK(y[q*k+l].gq(home,LB0));
+                   }
+                }
+             }
+             //fprintf(stdout,"\n");
+          }
     }
-    
+   
+    for ( int l = 0; l < K; ++l )
+       if ( Bound[l] > 0 )
+          GECODE_ME_CHECK(y[l].gq(home,Bound[l]));
+
     if ( ES_FAILED == G.filterArcs(n,m,k,x,home) )
        return ES_FAILED;
     
-    return ES_FIX;
+    return ES_NOFIX;
   }
 
   ExecStatus

@@ -172,18 +172,29 @@ DAG::filter( node_t Source, node_t Target, cost_t& LB, cost_t& UB ) {
 /// Filter the arcs
 ExecStatus DAG::filterArcs( int n, int m, int k, ViewArray<IntView>& x, Space& home) {
    for ( int i = 0; i < n; ++i ) {
-      int dom_size = 0;
-      int bin = -1;
-      for ( IntVarValues j(x[i]); j(); ++j ) {
-         if ( Nc[i*m+j.val()].in_degree() > 0 ) {
-            dom_size++;
-            bin = j.val();
+      //fprintf(stdout,"\n");
+      if ( !x[i].assigned() ) {
+         int dom_size = 0;
+         int bom_size = 0;
+         int bin = -1;
+         for ( IntVarValues j(x[i]); j(); ++j ) {
+            //fprintf(stdout,"x[%d]=%d\t", i, j.val());
+            if ( Nc[i*m+j.val()].in_degree() > 0 ) {
+               dom_size++;
+               bin = j.val();
+            }
+            if ( Nc[i*m+j.val()].out_degree() > 0 ) {
+               bom_size++;
+               bin = j.val();
+            }
          }
+         if ( dom_size == 0 || bom_size == 0) { // || (x[i].assigned() && x[i].val() != bin ))
+            return ES_FAILED;
+         }
+
+         if ( dom_size == 1 || bom_size == 1 ) 
+            GECODE_ME_CHECK(x[i].eq(home, bin));
       }
-      if ( dom_size == 0 || (x[i].assigned() && x[i].val() != bin ))
-         return ES_FAILED;
-      if ( dom_size == 1 ) 
-         GECODE_ME_CHECK(x[i].eq(home, bin));
    }
 
    return ES_NOFIX;
@@ -291,16 +302,18 @@ DAG::cuttingPlanes ( node_t Source, node_t Target, cost_t& LB, cost_t& UB ) {
 
       if (status == QS_LP_UNBOUNDED) {
          fprintf(stdout, "Unbounded\n");
+         c_status = 1;
          goto QUIT;
       }
 
       if (status == QS_LP_INFEASIBLE) {
          fprintf(stdout, "Infeasible\n");
+         c_status = 1;
          goto QUIT;
       }
 
-      QSget_objval(model, &lb);
-      //fprintf(stdout, "LP %f - status %d\n", lb, status);
+//      QSget_objval(model, &lb);
+  //    fprintf(stdout, "LP %f - status %d\n", lb, status);
       /// Take the current LP decision vector
       error = QSget_x_array(model, xbar);  /// xbar[0] <-> u; xbar[i+1] <-> v_i
       if (error) goto QUIT;
@@ -319,8 +332,10 @@ DAG::cuttingPlanes ( node_t Source, node_t Target, cost_t& LB, cost_t& UB ) {
       }
 
       dag_ssp(Source, W, Pf, Df);
-      if ( Pf[Target] == -1 ) 
+      if ( Pf[Target] == -1 ) {
+         c_status = 2;
          goto QUIT;
+      }
 
       Path* path = new Path(*this, Source, Target, Pf);
       
@@ -342,10 +357,10 @@ DAG::cuttingPlanes ( node_t Source, node_t Target, cost_t& LB, cost_t& UB ) {
       error = QSadd_row(model, k+1, cind, cval, rhs, 'L', (const char*) NULL);
       if (error) goto QUIT;
       pool.push_back(path);
-   } while ( iter++ < 50 );
+   } while ( iter++ < 200 );
 
 FILTER:
-   if ( iter < 50 ) {
+   if ( iter < 200 ) {
       /// Problema di separazione: Cammino Minimo su DAG
       /// Set the edge scaled weight as: c_e = c_e - v_1.r_e - ... - v_k.r_e
       for ( NodeIter nit = N.begin(), nit_end = N.end(); nit != nit_end; ++nit ) {
@@ -374,17 +389,17 @@ FILTER:
 
       LB = std::max<cost_t>(LB,Df[Target]+UBoff);
 
-      //if ( fabs(LB-ceil(LB)) > EPS )
-         //LB = int(ceil(LB));
-      //else 
-         //LB = int(round(LB));
+      if ( fabs(LB-ceil(LB)) > EPS )
+         LB = int(ceil(LB));
+      else 
+         LB = int(round(LB));
       /// The shortest path is not the optimum path: compute the reversed path
       dag_ssp_back_all(Target, W, Rb, Pb, Db );
 
       /// Filter first on the vertex and then on the forward star
       for ( NodeIter nit = N.begin(), nit_end = N.end(); nit != nit_end; ) {
          node_t v = nit->id;
-         if ( Df[v] + Db[v] + UBoff + EPS > UB && v != Source && v != Target) {
+         if ( Df[v] + Db[v] + UBoff - EPS > UB && v != Source && v != Target) {
             NodeIter vit(nit);
             ++nit;
             clearVertex(vit);
@@ -397,7 +412,6 @@ FILTER:
    else {
       fprintf(stdout,"WARNING\n");
       c_status = 1;
-      //exit(0);
    }
    
 QUIT:
@@ -407,8 +421,8 @@ QUIT:
 
    QSfree_prob(model);
 
-   if ( c_status == 1 )
+   if ( c_status == 0 )
       LB = std::max<cost_t>(lb, LB);
-   fprintf(stdout, "pool %ld\n", pool.size());
+   
    return c_status;
 }
