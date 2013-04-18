@@ -1,7 +1,6 @@
 #include "dag_pack.hh"
 #include "cost_resources_pack.hh"
 #include "path.hh"
-#include "qsopt.h"
 
 #include <cmath>
 
@@ -209,47 +208,22 @@ DAG::cuttingPlanes ( node_t Source, node_t Target, cost_t& LB, cost_t& UB ) {
 
    /// Gradient View for the separation algorithm
    ArcGradView W;
-   vector<CostResources> Rf(n);
-   vector<CostResources> Rb(n);
    for ( int v = 0; v < n; ++v ) {
       Rf[v].setData(0.0,k);
       Rb[v].setData(0.0,k);
    }
 
    /// Data structure for calling the underlying ANSI/C LP solver
-   QSprob   model;
    int      error  = 0;
    int      status = 0;
-   int      *cind  = NULL;
-   double   *cval  = NULL;
-   double   *xbar  = NULL;
    double   lb     = 0;
    int      iter   = 0;
+   double   t0 = 0;
+   double   t1 = 0;
+   double   t_lp = 0;
+   int      nz = 0;
 
-   cind = (int*)malloc(sizeof(int) * (k+1) );
-   if (!cind) goto QUIT;
-   cval = (double*)malloc(sizeof(double) * (k+1) );
-   if (!cval) goto QUIT;
-   xbar = (double*)malloc(sizeof(double) * (k+1) );
-   if (!xbar) goto QUIT;
-
-   /// Master Problem
-   model = QScreate_prob("lag_continuo", QS_MAX);
-   if (model == NULL) {
-      fprintf(stderr, "Error: could not create the problem\n");
-      exit(EXIT_FAILURE);
-   }
-
-   /// Add the problem variables (u, v_1, ..., v_k)
-   /// Add variable |u|
-   error = QSnew_col(model, 1.0, -QS_MAXDOUBLE, 100*UB, (const char*) NULL);
-   if (error) goto QUIT;
-
-   /// Add variables |v|  
-   for (int i = 0; i < k; ++i) {
-      error = QSnew_col(model, U[i], -QS_MAXDOUBLE, 0.0, (const char*) NULL);
-      if (error) goto QUIT;
-   }
+   timer TT;
 
    if ( pool.empty() ) {
       /// Constraint on a path for each constraint
@@ -265,55 +239,48 @@ DAG::cuttingPlanes ( node_t Source, node_t Target, cost_t& LB, cost_t& UB ) {
          /// First set the variable |u|
          cind[0] = 0;
          cval[0] = 1;
+         nz = 1;
          /// Then set the variables |v|
          for ( int i = 0; i < k; ++i ) {
-            cind[i+1] = i+1;
-            cval[i+1] = path->Rc[i];
+            if ( path->Rc[i] > 0 ) {
+               cind[nz] = i+1;
+               cval[nz] = path->Rc[i];
+               nz++;
+            }
          }
          /// Take the rhs
          double rhs = path->c;
-         error = QSadd_row(model, k+1, cind, cval, rhs, 'L', (const char*) NULL);
+         error = QSadd_row(model, nz, cind, cval, rhs, 'L', (const char*) NULL);
          if (error) goto QUIT;
          pool.push_back(path);
       }
    } else {
       int np = pool.size();
       for ( int h = 0; h < np; ++h ) {
-         /// First set the variable |u|
-         cind[0] = 0;
-         cval[0] = 1;
-         /// Then set the variables |v|
-         for ( int i = 0; i < k; ++i ) {
-            cind[i+1] = i+1;
-            cval[i+1] = pool[h].Rc[i];
-         }
          /// Take the rhs
          double rhs = pool[h].updateCost(*this);
-         error = QSadd_row(model, k+1, cind, cval, rhs, 'L', (const char*) NULL);
+         error = QSchange_rhscoef(model, h, rhs);
          if (error) goto QUIT;
       }
    } 
 
-   QSset_param (model, QS_PARAM_DUAL_PRICING, QS_PRICE_DDANTZIG);
+   t0 = TT.elapsed();
+
+   //QSset_param (model, QS_PARAM_DUAL_PRICING, QS_PRICE_DDANTZIG);
+   //QSset_param (model, QS_PARAM_DUAL_PRICING, QS_PRICE_DMULTPARTIAL);
    do {
       /* Optimize */
+      t1 = TT.elapsed();
       error = QSopt_dual(model, &status);
+      t_lp += TT.elapsed()-t1;
       if (error) goto QUIT;
 
-      if (status == QS_LP_UNBOUNDED) {
-         fprintf(stdout, "Unbounded\n");
+      if (status == QS_LP_UNBOUNDED || status == QS_LP_INFEASIBLE ) {
+         fprintf(stdout, "Unbounded or Infeasible\n");
          c_status = 1;
          goto QUIT;
       }
 
-      if (status == QS_LP_INFEASIBLE) {
-         fprintf(stdout, "Infeasible\n");
-         c_status = 1;
-         goto QUIT;
-      }
-
-//      QSget_objval(model, &lb);
-  //    fprintf(stdout, "LP %f - status %d\n", lb, status);
       /// Take the current LP decision vector
       error = QSget_x_array(model, xbar);  /// xbar[0] <-> u; xbar[i+1] <-> v_i
       if (error) goto QUIT;
@@ -331,68 +298,38 @@ DAG::cuttingPlanes ( node_t Source, node_t Target, cost_t& LB, cost_t& UB ) {
          }
       }
 
-      dag_ssp(Source, W, Pf, Df);
+      //dag_ssp(Source, W, Pf, Df);
+
+      //if ( Pf[Target] == -1 ) {
+         //c_status = 2;
+         //goto QUIT;
+      //}
+
+      /// Start double shortest path computation
+      dag_ssp_all(Source, W, Rf, Pf, Df );
+      
+      /// If destination is reachable, update the lower bound
       if ( Pf[Target] == -1 ) {
          c_status = 2;
          goto QUIT;
       }
-
-      Path* path = new Path(*this, Source, Target, Pf);
       
-      if ( fabs(path->d - u_bar) < EPS || path->d > u_bar + EPS ) {
-         QSget_objval(model, &lb);
-         goto FILTER;
-      }
-
-      /// First set the variable |u|
-      cind[0] = 0;
-      cval[0] = 1;
-      /// Then set the variables |v|
-      for ( int i = 0; i < k; ++i ) {
-         cind[i+1] = i+1;
-         cval[i+1] = path->Rc[i];
-      }
-      /// Take the rhs
-      double rhs = path->c;
-      error = QSadd_row(model, k+1, cind, cval, rhs, 'L', (const char*) NULL);
-      if (error) goto QUIT;
-      pool.push_back(path);
-   } while ( iter++ < 200 );
-
-FILTER:
-   if ( iter < 200 ) {
-      /// Problema di separazione: Cammino Minimo su DAG
-      /// Set the edge scaled weight as: c_e = c_e - v_1.r_e - ... - v_k.r_e
-      for ( NodeIter nit = N.begin(), nit_end = N.end(); nit != nit_end; ++nit ) {
-         for ( FSArcIterPair it = nit->getIterFS(); it.first != it.second; ++it.first ) {
-            FSArcIter a = it.first;
-            a->d = a->c;
-            for ( int l = 0; l < k; ++l ) 
-               a->d -= xbar[l+1]*a->r[l];
-         }
-      }
-
       /// Update offset of the objective function
       UBoff = 0;
       for ( int l = 0; l < k; ++l ) 
          UBoff += xbar[l+1]*U[l];
-      /// Start double shortest path computation
-      dag_ssp_all(Source, W, Rf, Pf, Df );
-      //fprintf(stdout,"LLBB %f \n", UBoff+Df[Target]);
-      /// If destination is reachable, update the lower bound
-      if ( Pf[Target] == -1 ) {
-         //fprintf(stdout, "Disconnected\n");
-         c_status = 2;
-         goto QUIT;
-      }
-      //fprintf(stdout,"\n");
-
       LB = std::max<cost_t>(LB,Df[Target]+UBoff);
-
       if ( fabs(LB-ceil(LB)) > EPS )
          LB = int(ceil(LB));
       else 
          LB = int(round(LB));
+
+      if ( LB > UB ) {
+         //fprintf(stdout, "Disconnected\n");
+         c_status = 2;
+         goto QUIT;
+      }
+
       /// The shortest path is not the optimum path: compute the reversed path
       dag_ssp_back_all(Target, W, Rb, Pb, Db );
 
@@ -408,21 +345,40 @@ FILTER:
             ++nit; 
          }
       }
-   }
-   else {
-      fprintf(stdout,"WARNING\n");
+
+      Path* path = new Path(*this, Source, Target, Pf);
+      
+      if ( fabs(path->d - u_bar) < EPS || path->d > u_bar + EPS ) {
+         QSget_objval(model, &lb);
+         goto QUIT;
+      }
+
+      /// First set the variable |u|
+      cind[0] = 0;
+      cval[0] = 1;
+      nz = 1;
+      /// Then set the variables |v|
+      for ( int i = 0; i < k; ++i ) {
+         if ( path->Rc[i] > 0 ) {
+            cind[nz] = i+1;
+            cval[nz] = path->Rc[i];
+            nz++;
+         }
+      }
+      /// Take the rhs
+      double rhs = path->c;
+      error = QSadd_row(model, nz, cind, cval, rhs, 'L', (const char*) NULL);
+      if (error) goto QUIT;
+      pool.push_back(path);
+   } while ( iter++ < 200 );
+
+   if ( iter >= 200 ) 
+      //fprintf(stdout,"WARNING\n");
       c_status = 1;
-   }
    
 QUIT:
-   free(cind);
-   free(cval);
-   free(xbar);
-
-   QSfree_prob(model);
-
    if ( c_status == 0 )
       LB = std::max<cost_t>(lb, LB);
-   
+//   fprintf(stdout, "TiFilter %.5f %.5f %.5f\n", TT.elapsed(), TT.elapsed()-t0, t_lp); 
    return c_status;
 }

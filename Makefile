@@ -46,10 +46,11 @@ ${LIB}/cost_multibin.o: ${LIB}/propagate_multi.o ${LIB}/dag_pack.o ${SRC}/cost_m
 
 ${LIB}/propagate_multi.o: ${LIB}/dag_pack.o ${SRC}/propagate_multi.cc
 	${COMPILER} -c ${SRC}/propagate_multi.cc -o ${LIB}/propagate_multi.o \
-		-I${GECODE_INCLUDE} -I${BOOST_INCLUDE} -I${INCLUDE} 
+		-I${QSOPT} -I${GECODE_INCLUDE} -I${BOOST_INCLUDE} -I${INCLUDE} 
 
 ${LIB}/path.o: ${LIB}/dag_pack.o ${SRC}/path.cc
-	${COMPILER} -c ${SRC}/path.cc -o ${LIB}/path.o -I${BOOST_INCLUDE} -I${INCLUDE} -I${GECODE_INCLUDE}
+	${COMPILER} -c ${SRC}/path.cc -o ${LIB}/path.o \
+		-I${QSOPT} -I${BOOST_INCLUDE} -I${INCLUDE} -I${GECODE_INCLUDE}
 
 #--------------
 # MY LIBRARIES

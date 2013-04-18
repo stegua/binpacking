@@ -4,7 +4,10 @@
 #include <boost/unordered_map.hpp>
 using boost::unordered_map;
 
+#include <boost/timer.hpp>
+
 namespace Gecode { namespace Int { namespace CostMultiBinPacking {
+
    PropCost MultiPack::cost(const Space&, const ModEventDelta&) const {
       return PropCost::crazy(PropCost::HI,x.size());
    }
@@ -89,6 +92,8 @@ namespace Gecode { namespace Int { namespace CostMultiBinPacking {
        G.addArc( (n-1)*m+j.val(), T, 0, R );
     }
 
+    boost::timer TTIMER;
+    double filter_time = 0;
     /// Filter the arcs
     cost_t LB;
     cost_t UB;
@@ -120,7 +125,9 @@ namespace Gecode { namespace Int { namespace CostMultiBinPacking {
                       G.setArcCost( As[make_pair(S, j.val())], 0);
                 }
 
+                double t0 = TTIMER.elapsed();
                 status = G.filter(S,T,LB,UB);
+                filter_time += TTIMER.elapsed()-t0;
 
                 if ( status == 2 ) {
                    fprintf(stdout,"fail-reach\n");
@@ -155,7 +162,7 @@ namespace Gecode { namespace Int { namespace CostMultiBinPacking {
 
     if ( ES_FAILED == G.filterArcs(n,m,k,x,home) )
        return ES_FAILED;
-    
+    //fprintf(stdout, "Time %.5f %.5f\n",  TTIMER.elapsed(), filter_time);    
     return ES_NOFIX;
   }
 

@@ -15,6 +15,13 @@ using std::queue;
 #include <limits>
 using std::numeric_limits;
 
+/// Boost Timer
+#include <boost/progress.hpp>
+using boost::timer;
+
+/// QSOPT
+#include "qsopt.h"
+
 /// My includes
 #include "arc.hh"
 #include "node.hh"
@@ -48,17 +55,19 @@ class DAG {
       vector<edge_t>  Pb;   /// Backward predecessor vector
       vector<dist_t>  Df;   /// Forward  distance vector
       vector<dist_t>  Db;   /// Backward distance vector
+      vector<CostResources> Rf;
+      vector<CostResources> Rb;
+   
+      int      *cind;
+      double   *cval;
+      double   *xbar;
+      QSprob   model;
 
       /// Initialize distance vector with Infinity
       /// Maybe it is better to intialize with an upper bound on the optimal path (optimal rcsp path)
       const dist_t Inf;
 
       cost_t UBoff;
-//      vector<cost_t> alpha;
-//      vector<cost_t> H;
-//      cost_t H0;
-//      cost_t zb;
-//      cost_t f;
 
    public:
       vector<Node>  Nc; /// Nodes container
@@ -69,9 +78,8 @@ class DAG {
 
       /// Standard constructor
       DAG ( node_t _n, edge_t _m, const resources& _U ) 
-         : n(_n), m(_m), k(_U.size()), Pf(n), Pb(n), Df(n), Db(n),
+         : n(_n), m(_m), k(_U.size()), Pf(n), Pb(n), Df(n), Db(n), Rf(n), Rb(n),
          Inf(std::numeric_limits<dist_t>::max()),
-         //alpha(k,0.0), H(k,0.0), 
          Nc(n), U(_U)
    {
       assert( n < std::numeric_limits<node_t>::max()  &&
@@ -85,10 +93,26 @@ class DAG {
          N.push_back( Nc[i] );
       }
       /// Subgradient
-      //H0 = 0.0;
-      //zb = 0.0;
-      //f  = 1.3;
+      cind = (int*)malloc(sizeof(int) * (k+1) );
+      cval = (double*)malloc(sizeof(double) * (k+1) );
+      xbar = (double*)malloc(sizeof(double) * (k+1) );
+
+      model = QScreate_prob("lag_continuo", QS_MAX);
+      if (model == NULL) {
+         fprintf(stderr, "Error: could not create the problem\n");
+         exit(EXIT_FAILURE);
+      }
+
+      /// Add the problem variables (u, v_1, ..., v_k)
+      /// Add variable |u|
+      QSnew_col(model, 1.0, -QS_MAXDOUBLE, 100000, (const char*) NULL);
+
+      /// Add variables |v|  
+      for (int i = 0; i < k; ++i) 
+         QSnew_col(model, U[i], -QS_MAXDOUBLE, 0.0, (const char*) NULL);
    }
+
+      ~DAG () { free(cind); free(cval); free(xbar); QSfree_prob(model); }
 
       /// Basic getters
       inline node_t num_nodes(void) const { return N.size(); }

@@ -3,6 +3,7 @@
 
 #include <gecode/int.hh>
 
+
 namespace Gecode { namespace Int { namespace CostMultiBinPacking {
    class MultiPack : public Propagator {
       protected:
