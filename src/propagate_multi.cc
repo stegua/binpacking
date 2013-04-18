@@ -100,7 +100,8 @@ namespace Gecode { namespace Int { namespace CostMultiBinPacking {
     int status = 0;
     vector<int> Bound(K,0);
     for ( int q = 0; q < m; ++q ) {
-       if ( BO[q] )
+       bool flag = false;
+       if ( BO[q] ) {
           for ( int l = 0; l < k; ++l ) {
              if ( !y[q*k+l].assigned() ) {
                 LB = 0;
@@ -148,17 +149,21 @@ namespace Gecode { namespace Int { namespace CostMultiBinPacking {
                    if ( y[q*k+l].min() < LB0 ) {
                       //fprintf(stdout,"prune #%.1f %d %d\n", LB, LB0, y[q*k+l].min());
                       Bound[q*k+l] = LB0;
-                      //GECODE_ME_CHECK(y[q*k+l].gq(home,LB0));
+                      GECODE_ME_CHECK(y[q*k+l].gq(home,LB0));
+                      flag = true;
                    }
                 }
              }
              //fprintf(stdout,"\n");
           }
+       }
+       if ( flag )
+          break;
     }
    
-    for ( int l = 0; l < K; ++l )
-       if ( Bound[l] > 0 )
-          GECODE_ME_CHECK(y[l].gq(home,Bound[l]));
+    //for ( int l = 0; l < K; ++l )
+     //  if ( Bound[l] > 0 )
+       //   GECODE_ME_CHECK(y[l].gq(home,Bound[l]));
 
     if ( ES_FAILED == G.filterArcs(n,m,k,x,home) )
        return ES_FAILED;
