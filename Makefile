@@ -5,9 +5,11 @@
 include config.mac
 
 gecode_multibin: ${LIB}/propagate_multi.o ${LIB}/dag_pack.o ${LIB}/path.o ${LIB}/cost_multibin.o ${SRC}/gecode_multibin.cc
-	${COMPILER} -c ${SRC}/gecode_multibin.cc -o ${LIB}/gecode_multibin.o -I${GECODE_INCLUDE} -I${BOOST_INCLUDE} -I${INCLUDE}
+	${COMPILER} -c ${SRC}/gecode_multibin.cc -o ${LIB}/gecode_multibin.o \
+		-I${GECODE_INCLUDE} -I${BOOST_INCLUDE} -I${INCLUDE} -I${GUROBI_INC}
 	${LINKER} -o ${BIN}/gecode_multibin ${LIB}/gecode_multibin.o \
-		${LIB}/path.o ${LIB}/dag_pack.o ${LIB}/propagate_multi.o ${LIB}/cost_multibin.o ${GECODE_LIB} ${QSOPT}/qsopt.a
+		${LIB}/path.o ${LIB}/dag_pack.o ${LIB}/propagate_multi.o ${LIB}/cost_multibin.o \
+		${GUROBI_LIB} ${GECODE_LIB} ${QSOPT}/qsopt.a
 
 multibinpacking: ${LIB}/path.o ${LIB}/dag_pack.o ${SRC}/multibinpacking.cc
 	${COMPILER} -c ${SRC}/multibinpacking.cc -o ${LIB}/multibinpacking.o \
@@ -31,7 +33,9 @@ binpacking: ${LIB}/dag_pack.o ${SRC}/binpacking.cc
 # Build everything
 all: binpacking
 
-# Propagator
+#--------------
+# MY LIBRARIES
+#--------------
 ${LIB}/cost_binpacking.o: ${LIB}/propagate.o ${LIB}/dag_pack.o ${SRC}/cost_binpacking.cc
 	${COMPILER} -c ${SRC}/cost_binpacking.cc -o ${LIB}/cost_binpacking.o \
 		-I${GECODE_INCLUDE} -I${BOOST_INCLUDE} -I${INCLUDE}
@@ -42,21 +46,19 @@ ${LIB}/propagate.o: ${LIB}/dag_pack.o ${SRC}/propagate.cc
 
 ${LIB}/cost_multibin.o: ${LIB}/propagate_multi.o ${LIB}/dag_pack.o ${SRC}/cost_multibin.cc
 	${COMPILER} -c ${SRC}/cost_multibin.cc -o ${LIB}/cost_multibin.o \
-		-I${GECODE_INCLUDE} -I${BOOST_INCLUDE} -I${INCLUDE}
+		-I${GECODE_INCLUDE} -I${BOOST_INCLUDE} -I${INCLUDE} -I${GUROBI_INC}
 
 ${LIB}/propagate_multi.o: ${LIB}/dag_pack.o ${SRC}/propagate_multi.cc
 	${COMPILER} -c ${SRC}/propagate_multi.cc -o ${LIB}/propagate_multi.o \
-		-I${QSOPT} -I${GECODE_INCLUDE} -I${BOOST_INCLUDE} -I${INCLUDE} 
+		-I${QSOPT} -I${GECODE_INCLUDE} -I${BOOST_INCLUDE} -I${INCLUDE} -I${GUROBI_INC}
 
 ${LIB}/path.o: ${LIB}/dag_pack.o ${SRC}/path.cc
 	${COMPILER} -c ${SRC}/path.cc -o ${LIB}/path.o \
-		-I${QSOPT} -I${BOOST_INCLUDE} -I${INCLUDE} -I${GECODE_INCLUDE}
+		-I${QSOPT} -I${BOOST_INCLUDE} -I${INCLUDE} -I${GECODE_INCLUDE} -I${GUROBI_INC}
 
-#--------------
-# MY LIBRARIES
-#--------------
 ${LIB}/dag_pack.o: ${SRC}/dag_pack.cc
-	${COMPILER} -c ${SRC}/dag_pack.cc -o ${LIB}/dag_pack.o -I${QSOPT} -I${BOOST_INCLUDE} -I${INCLUDE} -I${GECODE_INCLUDE}
+	${COMPILER} -c ${SRC}/dag_pack.cc -o ${LIB}/dag_pack.o \
+		-I${QSOPT} -I${BOOST_INCLUDE} -I${INCLUDE} -I${GECODE_INCLUDE} -I${GUROBI_INC}
 
 clean::
 	rm -f *.o

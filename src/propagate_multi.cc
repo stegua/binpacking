@@ -18,29 +18,6 @@ namespace Gecode { namespace Int { namespace CostMultiBinPacking {
 
   ExecStatus 
   MultiPack::propagate(Space& home, const ModEventDelta& med) {
-    /// check the ammisibility
-    int K = k*m;
-    resources B(K,0);
-    vector<bool> BO(m, false);
-    int fixed = 0;
-    for ( int i = 0; i < n; ++i ) {
-       if ( x[i].assigned() ) {
-          fixed++;
-          int j = x[i].val();
-          BO[j] = true;
-          for ( int l = 0; l < k; ++l ) 
-             B[j*k+l] += D[i*k+l];
-       }
-    }
-    for ( int l = 0; l < K; ++l ) {
-       if ( B[l] > y[l].max() ) {
-          fprintf(stdout,"Precheck\n");
-          return ES_FAILED;
-       }
-       else 
-          GECODE_ME_CHECK(y[l].gq(home, B[l]));
-    }
-
     /// Check if SUBSUMED
     {
        int i = 0;
@@ -49,8 +26,20 @@ namespace Gecode { namespace Int { namespace CostMultiBinPacking {
           return home.ES_SUBSUMED(*this);
     }
 
-    //if ( fixed < 2 )
-      // return ES_FIX;
+    /// check the ammisibility
+    int K = k*m;
+    vector<bool> BO(m, false);
+    int fixed = 0;
+    for ( int i = 0; i < n; ++i ) {
+       if ( x[i].assigned() ) {
+          fixed++;
+          int j = x[i].val();
+          BO[j] = true;
+       }
+    }
+
+    if ( fixed == 0 )
+       return ES_NOFIX;
 
     /// Create the graph and propagates: x = x
     int N = n*m+2;
@@ -98,12 +87,13 @@ namespace Gecode { namespace Int { namespace CostMultiBinPacking {
     cost_t LB;
     cost_t UB;
     int status = 0;
-    vector<int> Bound(K,0);
     for ( int q = 0; q < m; ++q ) {
        bool flag = false;
        if ( BO[q] ) {
+          if ( !G.isLPdefined() )
+             G.setLPmodel(S, T);
           for ( int l = 0; l < k; ++l ) {
-             if ( !y[q*k+l].assigned() ) {
+             if ( !y[q*k+l].assigned() && y[q*k+l].min() > 0 ) {
                 LB = 0;
                 UB = y[q*k+l].max();
                 //fprintf(stdout,"%.1f ", UB);
@@ -148,7 +138,6 @@ namespace Gecode { namespace Int { namespace CostMultiBinPacking {
                    }
                    if ( y[q*k+l].min() < LB0 ) {
                       //fprintf(stdout,"prune #%.1f %d %d\n", LB, LB0, y[q*k+l].min());
-                      Bound[q*k+l] = LB0;
                       GECODE_ME_CHECK(y[q*k+l].gq(home,LB0));
                       flag = true;
                    }
@@ -157,18 +146,14 @@ namespace Gecode { namespace Int { namespace CostMultiBinPacking {
              //fprintf(stdout,"\n");
           }
        }
-       if ( flag )
-          break;
+       //if ( flag )
+         // break;
     }
    
-    //for ( int l = 0; l < K; ++l )
-     //  if ( Bound[l] > 0 )
-       //   GECODE_ME_CHECK(y[l].gq(home,Bound[l]));
-
     if ( ES_FAILED == G.filterArcs(n,m,k,x,home) )
        return ES_FAILED;
     //fprintf(stdout, "Time %.5f %.5f\n",  TTIMER.elapsed(), filter_time);    
-    return ES_NOFIX;
+    return ES_FIX;
   }
 
   ExecStatus

@@ -138,10 +138,13 @@ void onlyCP ( int n, int m, int k, const vector<int>& b, const vector< vector<in
   t.start();
 
   Search::Options so;
-  
+ 
+  so.c_d = 1;
+  so.threads = 1;
+
   MultiBinPacking* s = new MultiBinPacking ( n, m, k, b, A );
 
-  so.stop = MyCutoff::create( 3600*1000, 1e+09 );
+  so.stop = MyCutoff::create( 360*1000, 1e+09 );
   
   DFS<MultiBinPacking> e(s, so);
      
