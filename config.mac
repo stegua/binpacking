@@ -1,7 +1,7 @@
 # Stefano Gualandi, stefano.gualandi@gmail.com
 # last update, October, 2012
 
-OPTFLAG = -O2 -DNDEBUG -Wall -m64 -g -fPIC
+OPTFLAG = -O2 -DNDEBUG -Wall -g -fPIC
 LDFLAGS = -O2 -DNDEBUG -lm -lpthread -g
 
 COMPILER    = g++ ${OPTFLAG}
@@ -30,3 +30,10 @@ QSOPT = /Users/gualandi/LIBS/qsopt
 # Use Gurobi as LP solver
 GUROBI_INC = /Library/gurobi550/mac64/include/
 GUROBI_LIB = -L/Library/gurobi550/mac64/lib/ -lgurobi55
+
+# Cliquer
+CLIQUER_INC = /Users/gualandi/MyLIB/cliquer-1.21/
+CLIQUER_LIB = /Users/gualandi/MyLIB/cliquer-1.21/cliquer.o \
+   /Users/gualandi/MyLIB/cliquer-1.21/graph.o \
+   /Users/gualandi/MyLIB/cliquer-1.21/reorder.o
+

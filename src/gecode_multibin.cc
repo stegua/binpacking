@@ -58,18 +58,21 @@ class MultiBinPacking : public Script {
             binpacking ( *this, t, x, s );
          }
          IntSharedArray C(n*k);
+         IntSharedArray B(k);
+         for ( int l = 0; l < k; ++l )
+            B[l] = b[l];
          for ( int i = 0; i < n; ++i ) 
             for ( int l = 0; l < k; ++l ) 
                C[i*k+l] = A[i][l];
-         cost_multibin(*this, n, m, k, y, x, C);
+         //cost_multibin(*this, n, m, k, y, x, C, B);
 
          if ( status() == SS_FAILED )
             printf("FAILED ROOT\n");
-         for ( int j = 0; j < m; j++ ) {
+/*         for ( int j = 0; j < m; j++ ) {
             for ( int l = 0; l < k; ++l )
                printf("%d#[%d,%d]  ", b[l], y[j*k+l].min(), y[j*k+l].max());
             printf("\n");
-         }
+         }*/
          {
             //   int sol[18] = {0,0,1,1,2,0,2,1,3,2,3,3,4,5,4,4,5,5};
             //int sol[18] = {0,0,1,1,2,2,3,1,0,2,4,3,4,5,4,5,5,3};
@@ -77,7 +80,7 @@ class MultiBinPacking : public Script {
             // rel ( *this, x[i], IRT_EQ, sol[i] );
          }
          /// Branching strategy 
-         branch(*this, x, INT_VAR_NONE, INT_VAL_MIN);
+         branch(*this, x, INT_VAR_SIZE_DEGREE_MIN, INT_VAL_MIN);
       }
       /// Constructor for cloning \a s
       MultiBinPacking( bool share, MultiBinPacking& s) : Script(share,s) {
@@ -92,6 +95,7 @@ class MultiBinPacking : public Script {
          int n = x.size();
          for ( int i = 0; i < n; ++i )
             fprintf(stdout, "%d,", x[i].val());
+         fprintf(stdout,"\n");
       }
 };
 
@@ -144,7 +148,7 @@ void onlyCP ( int n, int m, int k, const vector<int>& b, const vector< vector<in
 
   MultiBinPacking* s = new MultiBinPacking ( n, m, k, b, A );
 
-  so.stop = MyCutoff::create( 360*1000, 1e+09 );
+  so.stop = MyCutoff::create( 120*1000, 1e+09 );
   
   DFS<MultiBinPacking> e(s, so);
      

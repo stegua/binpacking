@@ -81,7 +81,7 @@ DAG::topologicalSortBack(void) {
 
 ///--------------------------------------------------------------------------------
 /// Solve the lagrangian subproblem with a subgradient procedure [B&C1989]
-/*int 
+int 
 DAG::subgradient(node_t Source, node_t Target, cost_t& LB, cost_t& UB) {
    /// Initialize new arc reduced cost
    ArcGradView W;
@@ -154,7 +154,6 @@ DAG::subgradient(node_t Source, node_t Target, cost_t& LB, cost_t& UB) {
       return 1;
    return 0;
 }
-*/
 
 ///--------------------------------------------------------------------------------
 int
@@ -197,67 +196,19 @@ ExecStatus DAG::filterArcs( int n, int m, int k, ViewArray<IntView>& x, Space& h
    return ES_NOFIX;
 }
 
-/// Set the LP models used by cutting planse
-int 
-DAG::setLPmodel(node_t Source, node_t Target) {
-   /// Cutting planes
-   cind = (int*)malloc(sizeof(int) * (k+1) );
-   cval = (double*)malloc(sizeof(double) * (k+1) );
-   xbar = (double*)malloc(sizeof(double) * (k+1) );
-
-   model = QScreate_prob("lag_continuo", QS_MAX);
-   if (model == NULL) {
-      fprintf(stderr, "Error: could not create the problem\n");
-      exit(EXIT_FAILURE);
-   }
-
-   /// Add the problem variables (u, v_1, ..., v_k)
-   /// Add variable |u|
-   QSnew_col(model, 1.0, -QS_MAXDOUBLE, 100000, (const char*) NULL);
-
-   /// Add variables |v|  
-   for (int i = 0; i < k; ++i) 
-      QSnew_col(model, U[i], -QS_MAXDOUBLE, 0.0, (const char*) NULL);
-
-   /// Constraint on a path for each constraint
-   if ( true ) {
-      for ( int l = 0; l < k ; ++l ) {
-         /// Compute the shortest path using the resource consumption
-         dag_ssp(Source, ArcResView(l), Pf, Df);
-         if ( Pf[Target] == -1 )
-            return 2;
-         /// Make the path
-         Path* path = new Path(*this, Source, Target, Pf);
-         /// First set the variable |u|
-         cind[0] = 0;
-         cval[0] = 1;
-         int nz = 1;
-         /// Then set the variables |v|
-         for ( int i = 0; i < k; ++i ) {
-            if ( path->Rc[i] > 0 ) {
-               cind[nz] = i+1;
-               cval[nz] = path->Rc[i];
-               nz++;
-            }
-         }
-         /// Take the rhs
-         double rhs = path->c;
-         QSadd_row(model, nz, cind, cval, rhs, 'L', (const char*) NULL);
-         pool.push_back(path);
-      }
-   }
-   return 0;
-}
-
 ///------------------------------------------------------------------------------------------
 /// Compute the lagrangian upper bound and the corresponding dual multipliers
 int 
 DAG::cuttingPlanes ( node_t Source, node_t Target, cost_t& LB, cost_t& UB ) {
-   /// Return status: 0) ok 1) failed 2) filtered
+   /// Return status: 0) ok 1) iter limit 2) failed
    int c_status = 0;
 
    /// Gradient View for the separation algorithm
    ArcGradView W;
+   for ( int v = 0; v < n; ++v ) {
+      Rf[v].setData(0.0,k);
+      Rb[v].setData(0.0,k);
+   }
 
    /// Data structure for calling the underlying ANSI/C LP solver
    int      error  = 0;
@@ -271,33 +222,63 @@ DAG::cuttingPlanes ( node_t Source, node_t Target, cost_t& LB, cost_t& UB ) {
 
    timer TT;
 
-   int np = pool.size();
-   for ( int h = 0; h < np; ++h ) {
-      /// Take the rhs
-      double rhs = pool[h].updateCost(*this);
-      error = QSchange_rhscoef(model, h, rhs);
-      if (error) goto QUIT;
-   }
+   if ( pool.empty() ) {
+      /// Constraint on a path for each constraint
+      for ( int l = 0; l < k ; ++l ) {
+         /// Compute the shortest path using the resource consumption
+         dag_ssp(Source, ArcResView(l), Pf, Df);
+         if ( Pf[Target] == -1 ) {
+            c_status = 2;
+            goto QUIT;
+         }
+         /// Make the path
+         Path* path = new Path(*this, Source, Target, Pf);
+         /// First set the variable |u|
+         cind[0] = 0;
+         cval[0] = 1;
+         nz = 1;
+         /// Then set the variables |v|
+         for ( int i = 0; i < k; ++i ) {
+            if ( path->Rc[i] > 0 ) {
+               cind[nz] = i+1;
+               cval[nz] = path->Rc[i];
+               nz++;
+            }
+         }
+         /// Take the rhs
+         double rhs = path->c;
+         error = GRBaddconstr(model, nz, cind, cval, GRB_LESS_EQUAL, rhs, (const char*) NULL);
+         if (error) goto QUIT;
+         pool.push_back(path);
+      }
+   } else {
+      int np = pool.size();
+      for ( int h = 0; h < np; ++h ) {
+         /// Take the rhs
+         double rhs = pool[h].updateCost(*this);
+         error = GRBsetdblattrelement(model, GRB_DBL_ATTR_RHS, h, rhs);
+         if (error) goto QUIT;
+      }
+   } 
 
    t0 = TT.elapsed();
 
-   //QSset_param (model, QS_PARAM_DUAL_PRICING, QS_PRICE_DDANTZIG);
-   //QSset_param (model, QS_PARAM_DUAL_PRICING, QS_PRICE_DMULTPARTIAL);
    do {
       /* Optimize */
       t1 = TT.elapsed();
-      error = QSopt_dual(model, &status);
+      error = GRBoptimize(model);//QSopt_dual(model, &status);
       t_lp += TT.elapsed()-t1;
       if (error) goto QUIT;
 
-      if (status == QS_LP_UNBOUNDED || status == QS_LP_INFEASIBLE ) {
+      error = GRBgetintattr(model, "Status", &status);
+      if (status == GRB_UNBOUNDED || status == GRB_INFEASIBLE ) {
          fprintf(stdout, "Unbounded or Infeasible\n");
          c_status = 1;
          goto QUIT;
       }
 
       /// Take the current LP decision vector
-      error = QSget_x_array(model, xbar);  /// xbar[0] <-> u; xbar[i+1] <-> v_i
+      error = GRBgetdblattrarray(model, "X", 0, k+1, xbar);
       if (error) goto QUIT;
 
       double u_bar = xbar[0];
@@ -313,8 +294,15 @@ DAG::cuttingPlanes ( node_t Source, node_t Target, cost_t& LB, cost_t& UB ) {
          }
       }
 
+      //dag_ssp(Source, W, Pf, Df);
+
+      //if ( Pf[Target] == -1 ) {
+         //c_status = 2;
+         //goto QUIT;
+      //}
+
       /// Start double shortest path computation
-      dag_ssp(Source, W, Pf, Df );
+      dag_ssp_all(Source, W, Rf, Pf, Df );
       
       /// If destination is reachable, update the lower bound
       if ( Pf[Target] == -1 ) {
@@ -339,8 +327,7 @@ DAG::cuttingPlanes ( node_t Source, node_t Target, cost_t& LB, cost_t& UB ) {
       }
 
       /// The shortest path is not the optimum path: compute the reversed path
-      //dag_ssp_back_all(Target, W, Rb, Pb, Db );
-      dag_ssp_back(Target, W, Pb, Db );
+      dag_ssp_back_all(Target, W, Rb, Pb, Db );
 
       /// Filter first on the vertex and then on the forward star
       for ( NodeIter nit = N.begin(), nit_end = N.end(); nit != nit_end; ) {
@@ -350,7 +337,7 @@ DAG::cuttingPlanes ( node_t Source, node_t Target, cost_t& LB, cost_t& UB ) {
             ++nit;
             clearVertex(vit);
          } else {
-            filterCostFS(nit, W, Pf, Pb, Df, Db, Source, Target, UB, UBoff ); 
+            filterCostFS(nit, W, Pf, Pb, Df, Db, Rf, Rb, Source, Target, UB, UBoff ); 
             ++nit; 
          }
       }
@@ -358,7 +345,7 @@ DAG::cuttingPlanes ( node_t Source, node_t Target, cost_t& LB, cost_t& UB ) {
       Path* path = new Path(*this, Source, Target, Pf);
       
       if ( fabs(path->d - u_bar) < EPS || path->d > u_bar + EPS ) {
-         QSget_objval(model, &lb);
+         GRBgetdblattr(model, "ObjVal", &lb);
          goto QUIT;
       }
 
@@ -376,7 +363,7 @@ DAG::cuttingPlanes ( node_t Source, node_t Target, cost_t& LB, cost_t& UB ) {
       }
       /// Take the rhs
       double rhs = path->c;
-      error = QSadd_row(model, nz, cind, cval, rhs, 'L', (const char*) NULL);
+      error = GRBaddconstr(model, nz, cind, cval, GRB_LESS_EQUAL, rhs, (const char*) NULL);
       if (error) goto QUIT;
       pool.push_back(path);
    } while ( iter++ < 200 );
@@ -388,6 +375,8 @@ DAG::cuttingPlanes ( node_t Source, node_t Target, cost_t& LB, cost_t& UB ) {
 QUIT:
    if ( c_status == 0 )
       LB = std::max<cost_t>(lb, LB);
-//   fprintf(stdout, "TiFilter %.5f %.5f %.5f\n", TT.elapsed(), TT.elapsed()-t0, t_lp); 
+   for ( int l = 0; l < k; ++l )
+      alpha[l] = fabs(xbar[l+1]);
+   //fprintf(stdout, "TiFilter %.5f %.5f %.5f %d\n", TT.elapsed(), TT.elapsed()-t0, t_lp, iter); 
    return c_status;
 }

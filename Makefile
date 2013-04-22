@@ -6,10 +6,10 @@ include config.mac
 
 gecode_multibin: ${LIB}/propagate_multi.o ${LIB}/dag_pack.o ${LIB}/path.o ${LIB}/cost_multibin.o ${SRC}/gecode_multibin.cc
 	${COMPILER} -c ${SRC}/gecode_multibin.cc -o ${LIB}/gecode_multibin.o \
-		-I${GECODE_INCLUDE} -I${BOOST_INCLUDE} -I${INCLUDE} -I${GUROBI_INC}
+		-I${GECODE_INCLUDE} -I${BOOST_INCLUDE} -I${INCLUDE} -I${GUROBI_INC} -I${CLIQUER_INC}
 	${LINKER} -o ${BIN}/gecode_multibin ${LIB}/gecode_multibin.o \
 		${LIB}/path.o ${LIB}/dag_pack.o ${LIB}/propagate_multi.o ${LIB}/cost_multibin.o \
-		${GUROBI_LIB} ${GECODE_LIB} ${QSOPT}/qsopt.a
+		${GUROBI_LIB} ${GECODE_LIB} ${QSOPT}/qsopt.a ${CLIQUER_LIB}
 
 multibinpacking: ${LIB}/path.o ${LIB}/dag_pack.o ${SRC}/multibinpacking.cc
 	${COMPILER} -c ${SRC}/multibinpacking.cc -o ${LIB}/multibinpacking.o \
@@ -46,11 +46,11 @@ ${LIB}/propagate.o: ${LIB}/dag_pack.o ${SRC}/propagate.cc
 
 ${LIB}/cost_multibin.o: ${LIB}/propagate_multi.o ${LIB}/dag_pack.o ${SRC}/cost_multibin.cc
 	${COMPILER} -c ${SRC}/cost_multibin.cc -o ${LIB}/cost_multibin.o \
-		-I${GECODE_INCLUDE} -I${BOOST_INCLUDE} -I${INCLUDE} -I${GUROBI_INC}
+		-I${GECODE_INCLUDE} -I${BOOST_INCLUDE} -I${INCLUDE} -I${GUROBI_INC} -I${CLIQUER_INC}
 
 ${LIB}/propagate_multi.o: ${LIB}/dag_pack.o ${SRC}/propagate_multi.cc
 	${COMPILER} -c ${SRC}/propagate_multi.cc -o ${LIB}/propagate_multi.o \
-		-I${QSOPT} -I${GECODE_INCLUDE} -I${BOOST_INCLUDE} -I${INCLUDE} -I${GUROBI_INC}
+		-I${QSOPT} -I${GECODE_INCLUDE} -I${BOOST_INCLUDE} -I${INCLUDE} -I${GUROBI_INC} -I${CLIQUER_INC}
 
 ${LIB}/path.o: ${LIB}/dag_pack.o ${SRC}/path.cc
 	${COMPILER} -c ${SRC}/path.cc -o ${LIB}/path.o \

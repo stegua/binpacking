@@ -6,6 +6,11 @@ using boost::unordered_map;
 
 #include <boost/timer.hpp>
 
+extern "C" {
+#include "cliquer.h"
+#include "graph.h"
+}
+#include <gecode/int/distinct.hh>
 namespace Gecode { namespace Int { namespace CostMultiBinPacking {
 
    PropCost MultiPack::cost(const Space&, const ModEventDelta&) const {
@@ -25,27 +30,116 @@ namespace Gecode { namespace Int { namespace CostMultiBinPacking {
        if ( i == x.size() )
           return home.ES_SUBSUMED(*this);
     }
-
+    //return ES_FIX;
     /// check the ammisibility
     int K = k*m;
     vector<bool> BO(m, false);
+    vector<int>  CR(m*k,0);
     int fixed = 0;
     for ( int i = 0; i < n; ++i ) {
        if ( x[i].assigned() ) {
           fixed++;
           int j = x[i].val();
           BO[j] = true;
+          for ( int l = 0; l < m; ++l )
+             CR[j*k+l] += D[i*k+l];
        }
     }
 
-    if ( fixed == 0 )
+    //if ( fixed == 0 )
+      // return ES_NOFIX;
+
+    /// Clique detection
+       graph_t* g = graph_new(n);
+       int max_dom = 0;
+       for ( int a = 0; a < n-1; ++a ) {
+          if ( !x[a].assigned() ) {
+             //g->weights[a] = 100+m-x[a].size();
+             if ( x[a].size() > max_dom )
+                max_dom = x[a].size();
+             for ( int b = 0; b < n; ++b ) {
+                if ( a != b && !x[b].assigned() && x[a].size() <= x[b].size() ) {
+                   int nl = 0;
+                   IntVarValues i(x[a]);
+                   IntVarValues j(x[b]);
+                   while ( i() ) {
+                      if ( i.val() != j.val() ) {
+                         if ( i.val() < j.val() )
+                            break;
+                         else
+                            ++i;
+                      } else {
+                         for ( int l = 0; l < k; ++l )
+                            if ( D[a*k+l] + D[b*k+l] > B[l] - CR[i.val()*k+l] ) {
+                               nl++;
+                               break;
+                            }
+                         ++i; ++j;
+                      }
+                   }
+                   if ( nl >= x[a].size() )
+                      GRAPH_ADD_EDGE(g,a,b);
+                }
+             }
+          }
+       }
+
+       clique_options* opts;
+       set_t s;
+       opts = (clique_options*) malloc (sizeof(clique_options));
+       opts->time_function=NULL;
+       opts->reorder_function=reorder_by_default;
+       opts->reorder_map=NULL;
+       opts->user_function=NULL;
+       opts->user_data=NULL;
+       opts->clique_list=NULL;
+       opts->clique_list_length=0;
+       for ( int a = 0; a < n; ++ a ) {
+          if ( !x[a].assigned() ) {
+             g->weights[a] = 100;
+             s = clique_find_single ( g, 0, 0, TRUE, opts);
+             if ( s != NULL && set_size(s) > 0 ) {
+                max_dom = 0;
+          //      fprintf(stdout,"clique %d\t", set_size(s));
+                ViewArray<IntView> xv(home, set_size(s));
+                int idx = 0;
+                for ( int a = 0; a < n; ++a )
+                   if ( SET_CONTAINS_FAST(s,a) ) {
+                      xv[idx] = x[a];
+            //          printf("x[%d]=%d ", a, x[a].size());
+                      if ( x[a].size() > max_dom )
+                         max_dom = x[a].size();
+                      idx++;
+                   }
+                /*ExecStatus es = Distinct::prop_bnd<IntView>(home,xv);
+                GECODE_ES_CHECK(es);
+                if ( xv.size() > 2 )
+                   es = Distinct::prop_val<IntView,true>(home,xv);
+                GECODE_ES_CHECK(es);
+                printf("\n");*/
+             }
+             if ( s != NULL && set_size(s) > max_dom ) {
+                set_free(s);
+                free(opts);
+                graph_free(g);
+                fprintf(stdout,"Failed\n");
+                return ES_FAILED;
+             }
+             g->weights[a] = 1;
+          }
+       }
+       if ( s!=NULL )
+          set_free(s);
+       free(opts);
+       graph_free(g);
+
        return ES_NOFIX;
 
-    /// Create the graph and propagates: x = x
-    int N = n*m+2;
-    int M = (n-1)*(m*m)+2*m;
-    int S = N-2;
-    int T = N-1;
+       /// Create the graph and propagates: x = x
+       int N = n*m+2;
+       int M = (n-1)*(m*m)+2*m;
+       int S = N-2;
+       int T = N-1;
 
     resources U(K,0);
     for ( int l = 0; l < K; ++l )
@@ -158,7 +252,8 @@ namespace Gecode { namespace Int { namespace CostMultiBinPacking {
 
   ExecStatus
   MultiPack::post(Home home, int n, int m, int k,
-      ViewArray<IntView>& y, ViewArray<IntView>& x, const IntSharedArray& D) {
+      ViewArray<IntView>& y, ViewArray<IntView>& x, 
+      const IntSharedArray& D, const IntSharedArray& B) {
     if (x.size() == 0) {
       // No items to be packed
       for (int i=y.size(); i--; )
@@ -173,7 +268,74 @@ namespace Gecode { namespace Int { namespace CostMultiBinPacking {
         GECODE_ME_CHECK(x[i].gq(home,0));
         GECODE_ME_CHECK(x[i].le(home,y.size()));
       }
-      (void) new (home) MultiPack(home,n,m,k,y,x,D);
+      {
+       graph_t* g = graph_new(n);
+       int max_dom = 0;
+       for ( int a = 0; a < n-1; ++a ) {
+          if ( !x[a].assigned() ) {
+             if ( x[a].size() > max_dom )
+                max_dom = x[a].size();
+             for ( int b = 0; b < n; ++b ) {
+                if ( a != b && !x[b].assigned() && x[a].size() <= x[b].size() ) {
+                   int nl = 0;
+                   IntVarValues i(x[a]);
+                   IntVarValues j(x[b]);
+                   while ( i() ) {
+                      if ( i.val() != j.val() ) {
+                         if ( i.val() < j.val() )
+                            break;
+                         else
+                            ++i;
+                      } else {
+                         for ( int l = 0; l < k; ++l )
+                            if ( D[a*k+l] + D[b*k+l] > B[l] ) {
+                               nl++;
+                               break;
+                            }
+                         ++i; ++j;
+                      }
+                   }
+                   if ( nl >= x[a].size() )
+                      GRAPH_ADD_EDGE(g,a,b);
+                }
+             }
+          }
+       }
+
+       clique_options* opts;
+       set_t s;
+       opts = (clique_options*) malloc (sizeof(clique_options));
+       opts->time_function=NULL;
+       opts->reorder_function=reorder_by_default;
+       opts->reorder_map=NULL;
+       opts->user_function=NULL;
+       opts->user_data=NULL;
+       opts->clique_list=NULL;
+       opts->clique_list_length=0;
+       for ( int a = 0; a < n; ++a ) {
+          g->weights[a] = 100;
+          s = clique_find_single ( g, 0, 0, TRUE, opts);
+          if ( s != NULL && set_size(s) > 0 ) {
+//             fprintf(stdout,"clique %d\t", set_size(s));
+             ViewArray<IntView> xv(home, set_size(s));
+             int idx = 0;
+             for ( int a = 0; a < n; ++a )
+                if ( SET_CONTAINS_FAST(s,a) ) {
+                   xv[idx] = x[a];
+                   //printf("x[%d]=%d ", a, x[a].size());
+                   idx++;
+                }
+             GECODE_ES_CHECK(Distinct::Dom<IntView>::post(home,xv));
+ //            printf("\n");
+          }
+          g->weights[a] = 1;
+       }
+       if ( s!=NULL )
+          set_free(s);
+       free(opts);
+       graph_free(g);
+      } 
+//      (void) new (home) MultiPack(home, n, m, k, y, x, D, B);
       return ES_OK;
     }
     /// Check also the z variable!

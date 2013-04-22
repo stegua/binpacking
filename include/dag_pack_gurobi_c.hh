@@ -20,7 +20,10 @@ using std::numeric_limits;
 using boost::timer;
 
 /// QSOPT
-#include "qsopt.h"
+//#include "qsopt.h"
+extern "C" {
+#include "gurobi_c.h"
+}
 
 /// My includes
 #include "arc.hh"
@@ -55,20 +58,23 @@ class DAG {
       vector<edge_t>  Pb;   /// Backward predecessor vector
       vector<dist_t>  Df;   /// Forward  distance vector
       vector<dist_t>  Db;   /// Backward distance vector
+      vector<CostResources> Rf;
+      vector<CostResources> Rb;
    
       int      *cind;
       double   *cval;
       double   *xbar;
-      QSprob   model;
-
+      //QSprob   model;
+      GRBenv   *env;
+      GRBmodel *model;
       /// Initialize distance vector with Infinity
       /// Maybe it is better to intialize with an upper bound on the optimal path (optimal rcsp path)
       const dist_t Inf;
-//      vector<cost_t> alpha;
-  //    vector<cost_t> H;
-    //  cost_t H0;
-      //cost_t zb;
-      //cost_t f;
+      vector<cost_t> alpha;
+      vector<cost_t> H;
+      cost_t H0;
+      cost_t zb;
+      cost_t f;
       cost_t UBoff;
 
    public:
@@ -80,8 +86,8 @@ class DAG {
 
       /// Standard constructor
       DAG ( node_t _n, edge_t _m, const resources& _U ) 
-         : n(_n), m(_m), k(_U.size()), Pf(n), Pb(n), Df(n), Db(n), 
-         Inf(std::numeric_limits<dist_t>::max()), //alpha(k,0.0), H(k,0.0),
+         : n(_n), m(_m), k(_U.size()), Pf(n), Pb(n), Df(n), Db(n), Rf(n), Rb(n),
+         Inf(std::numeric_limits<dist_t>::max()), alpha(k,0.0), H(k,0.0),
          Nc(n), U(_U)
    {
       assert( n < std::numeric_limits<node_t>::max()  &&
@@ -95,20 +101,55 @@ class DAG {
          N.push_back( Nc[i] );
       }
       /// Subgradient
-      //H0 = 0.0;
-      //zb = 0.0;
-      //f  = 0.5;
+      H0 = 0.0;
+      zb = 0.0;
+      f  = 0.5;
+      /// Cutting planes
+      cind = (int*)malloc(sizeof(int) * (k+1) );
+      cval = (double*)malloc(sizeof(double) * (k+1) );
+      xbar = (double*)malloc(sizeof(double) * (k+1) );
+      double* lb = (double*)malloc(sizeof(double) * (k+2) );
+      double* ub = (double*)malloc(sizeof(double) * (k+1) );
+      double* oj = (double*)malloc(sizeof(double) * (k+1) );
+      char* le = (char*)malloc(sizeof(char) * (k+1) );
+     
+      lb[0] = -GRB_INFINITY;
+      ub[0] = 100000;
+      oj[0] = 1.0;
+      le[0] = GRB_CONTINUOUS;
+      for ( int l = 1; l < k+1; ++l ) {
+         lb[l] = -GRB_INFINITY;
+         ub[l] = 0;
+         oj[l] = U[l-1];
+         le[l] = GRB_CONTINUOUS;
+      }
 
-      /// Cutting planse
-      model = NULL;
+      GRBloadenv(&env, NULL); 
+      GRBsetintparam(env, GRB_INT_PAR_OUTPUTFLAG,     0);
+      GRBsetintparam(env, GRB_INT_PAR_METHOD,         1);
+      GRBsetintparam(env, GRB_INT_PAR_THREADS,        1);
+      GRBsetintparam(env, GRB_INT_PAR_PRESOLVE,       0);
+      GRBsetintparam(env, GRB_INT_PAR_DUALREDUCTIONS, 0);
+      GRBsetintparam(env, GRB_INT_PAR_SIMPLEXPRICING, 1);
+      GRBsetintparam(env, GRB_INT_PAR_AGGREGATE,      0);
+      GRBsetintparam(env, GRB_INT_PAR_PREDEPROW,      0);
+      GRBsetintparam(env, GRB_INT_PAR_PREPASSES,      0);
+      GRBsetintparam(env, GRB_INT_PAR_PREDUAL,        1);
+      GRBsetintparam(env, GRB_INT_PAR_SCALEFLAG,      1);
+
+      GRBnewmodel(env, &model, "lang", k+1, oj, lb, ub, le, NULL); 
+      GRBupdatemodel(model);
+      GRBsetintattr(model, "ModelSense", GRB_MAXIMIZE); 
+
+      free(lb); free(ub); free(oj); free(le);
    }
 
       ~DAG () { 
-         if ( model != NULL ) { QSfree_prob(model); free(cind); free(cval); free(xbar);  }
+         free(cind); free(cval); free(xbar); 
+         GRBfreemodel(model);
+         GRBfreeenv(env);
       }
 
-      int setLPmodel(node_t Source, node_t Target);
-      inline bool isLPdefined(void) const { return (model != NULL); }
       /// Basic getters
       inline node_t num_nodes(void) const { return N.size(); }
       inline edge_t num_arcs(void)  const { return A.size(); }
@@ -327,7 +368,7 @@ class DAG {
          bool filterCostFS(NodeIter vit, const LengthMap& W,
                const vector<edge_t>& Pf, const vector<edge_t>& Pb,
                const vector<dist_t>& Df, const vector<dist_t>& Db,
-//               const vector<CostResources>& Rf, const vector<CostResources>& Rb,
+               const vector<CostResources>& Rf, const vector<CostResources>& Rb,
                node_t Source, node_t Target, cost_t& UB, cost_t UB_off ) 
          {
             bool removed = false;

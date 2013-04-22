@@ -6,6 +6,7 @@ namespace Gecode {
          const IntVarArgs& y, 
          const IntVarArgs& x, 
          const IntSharedArray& D,
+         const IntSharedArray& B,
          IntConLevel) 
    {
       using namespace Int;
@@ -15,6 +16,7 @@ namespace Gecode {
 
       if (home.failed()) return;
 
+
       ViewArray<IntView> yv(home,y.size());
       for (int i=y.size(); i--; )
          yv[i] = IntView(y[i]);
@@ -23,7 +25,7 @@ namespace Gecode {
       for (int i=xv.size(); i--; )
          xv[i] = IntView(x[i]);
 
-      GECODE_ES_FAIL(Int::CostMultiBinPacking::MultiPack::post(home,n,m,k,yv,xv,D));
+      GECODE_ES_FAIL(Int::CostMultiBinPacking::MultiPack::post(home, n, m, k, yv, xv, D, B));
    }
 }
 
