@@ -4,6 +4,11 @@
 # Change this file to use a different set of local variable (machine dependant)
 include config.mac
 
+example: ${LIB}/multibin-packing.o ${SRC}/example.cc
+	${COMPILER} -c ${SRC}/example.cc -o ${LIB}/example.o \
+		-I${GECODE_INCLUDE} -I${BOOST_INCLUDE} -I${INCLUDE} -I${CLIQUER_INC}
+	${LINKER} -o ${BIN}/example ${LIB}/example.o ${LIB}/multibin-packing.o ${GECODE_LIB} ${CLIQUER_LIB}
+
 gecode_multibin: ${LIB}/propagate_multi.o ${LIB}/dag_pack.o ${LIB}/path.o ${LIB}/cost_multibin.o ${SRC}/gecode_multibin.cc
 	${COMPILER} -c ${SRC}/gecode_multibin.cc -o ${LIB}/gecode_multibin.o \
 		-I${GECODE_INCLUDE} -I${BOOST_INCLUDE} -I${INCLUDE} -I${GUROBI_INC} -I${CLIQUER_INC}
@@ -36,6 +41,10 @@ all: binpacking
 #--------------
 # MY LIBRARIES
 #--------------
+${LIB}/multibin-packing.o: ${LIB}/dag_pack.o ${SRC}/multibin-packing.cpp
+	${COMPILER} -c ${SRC}/multibin-packing.cpp -o ${LIB}/multibin-packing.o \
+		-I${GECODE_INCLUDE} -I${BOOST_INCLUDE} -I${INCLUDE} -I${CLIQUER_INC}
+
 ${LIB}/cost_binpacking.o: ${LIB}/propagate.o ${LIB}/dag_pack.o ${SRC}/cost_binpacking.cc
 	${COMPILER} -c ${SRC}/cost_binpacking.cc -o ${LIB}/cost_binpacking.o \
 		-I${GECODE_INCLUDE} -I${BOOST_INCLUDE} -I${INCLUDE}
