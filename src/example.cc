@@ -5,7 +5,7 @@
  *  Copyright:
  *     Stefano Gualandi, 2013
  *
- *  Last update: March, 7t, 2013
+ *  Last update: April, 27th, 2013
  */
 
 /// Boost Timer
@@ -23,12 +23,12 @@ using std::vector;
 #include <stdio.h>
 #include <fstream>
 
+#include "multibin-packing.hh"
 
 #include <gecode/driver.hh>
 using namespace Gecode;
 using namespace Gecode::Int;
 
-#include "cost_multibin.hh"
 
 /// Main Script
 class MultiBinPacking : public Script {
@@ -43,47 +43,22 @@ class MultiBinPacking : public Script {
          :  x ( *this, n,   0, m-1         ), 
             y ( *this, m*k, 0, Limits::max ) 
       { 
-         /// Capacity constraint for each dimension
-         for ( int j = 0; j < m; ++j )
-            for ( int l = 0; l < k; ++l )
-               rel ( *this, y[j*k+l], IRT_LQ, b[l] );
-         /// Break symmetries 
-         for ( int j = 0; j < m-1; ++j )
-            rel ( *this, y[j*k], IRT_LQ, y[(j+1)*k] );
-         /// Post binpacking constraints
-         for ( int l = 0; l < k; ++l ) {
-            IntArgs s(n);
-            for ( int i = 0; i < n; ++i )
-               s[i] = A[i][l];
-            IntVarArgs t(m);
-            for ( int j = 0; j < m; ++j )
-               t[j] = y[j*k+l];
-            binpacking ( *this, t, x, s );
-         }
-         IntSharedArray C(n*k);
+         /// Every bin has the same capacity for a given dimension
          IntSharedArray B(k);
          for ( int l = 0; l < k; ++l )
             B[l] = b[l];
+
+         /// Item size for each dimension
+         IntSharedArray C(n*k);
          for ( int i = 0; i < n; ++i ) 
             for ( int l = 0; l < k; ++l ) 
                C[i*k+l] = A[i][l];
-         cost_multibin(*this, n, m, k, y, x, C, B);
 
-         if ( status() == SS_FAILED )
-            printf("FAILED ROOT\n");
-/*         for ( int j = 0; j < m; j++ ) {
-            for ( int l = 0; l < k; ++l )
-               printf("%d#[%d,%d]  ", b[l], y[j*k+l].min(), y[j*k+l].max());
-            printf("\n");
-         }*/
-         {
-            //   int sol[18] = {0,0,1,1,2,0,2,1,3,2,3,3,4,5,4,4,5,5};
-            //int sol[18] = {0,0,1,1,2,2,3,1,0,2,4,3,4,5,4,5,5,3};
-            //for ( int i = 0; i < n; ++i )
-            // rel ( *this, x[i], IRT_EQ, sol[i] );
-         }
+         /// Post multidimensional binpacking constraint
+         multibinpacking(*this, n, m, k, y, x, C, B);
+
          /// Branching strategy 
-         branch(*this, x, INT_VAR_SIZE_DEGREE_MIN, INT_VAL_RND);
+         branch(*this, x, INT_VAR_DEGREE_SIZE_MAX(), INT_VAL_MIN());
       }
       /// Constructor for cloning \a s
       MultiBinPacking( bool share, MultiBinPacking& s) : Script(share,s) {
@@ -209,7 +184,5 @@ int main(int argc, char **argv)
    
    onlyCP(n,m,k,b,A);
 
-   fprintf(stdout,"%.3f\n", TIMER.elapsed());
-   
    return EXIT_SUCCESS;
 }
